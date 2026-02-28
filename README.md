@@ -89,6 +89,20 @@ To wire it up, add to `.claude/settings.json`:
 }
 ```
 
+## Skills (slash commands)
+
+Copy `skills/sense/` and `skills/sense-sync/` into your project's `.claude/skills/` directory to enable slash commands:
+
+```bash
+cp -r /path/to/sense-mcp/skills/* /path/to/your-project/.claude/skills/
+```
+
+Then use:
+- `/sense <query>` — search with optional `--project`, `--type`, `--limit`, `--mode` flags
+- `/sense` (no args) — auto-synthesizes a query from conversation context
+- `/sense-sync` — rebuild the index
+- `/sense-sync status` — show index stats without re-indexing
+
 ## Tools
 
 ### `sense_search`
