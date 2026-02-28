@@ -57,7 +57,7 @@ surfaced_cap = 500   # Max files tracked for resurfacing penalty
 max_queries = 50     # Query history for circling detection
 
 # --- Mode-Aware Retrieval ---
-# Integrates with Vibe Harness (https://github.com/anuna-research/vibe-harness)
+# Integrates with Vibe Harness (https://vibe-harness.xyz)
 # If not using Vibe Harness, this section is ignored.
 
 [mode]
