@@ -1,0 +1,143 @@
+# sense.toml — Sense MCP Server Configuration
+#
+# Copy this file to sense.toml and adjust for your project.
+# All paths are relative to this file's directory unless absolute.
+
+[server]
+name = "Sense"
+
+[embedding]
+model = "text-embedding-3-small"
+dimensions = 1536
+max_input_tokens = 8000
+batch_size = 256
+
+[corpus]
+# Root directory to index. Relative to this config file's directory.
+# Can also be set via SENSE_ROOT env var.
+root = ".."
+
+# SQLite database (relative to this file's directory)
+database = "sense.db"
+
+# Environment variable name for the OpenAI API key
+api_key_env = "OPENAI_API_KEY"
+
+# .env file to load (relative to corpus root)
+env_file = ".env"
+
+# File extensions to index
+extensions = [".md", ".txt", ".rst", ".py"]
+
+# Directory names to skip (matched anywhere in path)
+excluded_dirs = [
+    "node_modules", "_site", ".venv", "venv", "__pycache__",
+    ".git", ".tox", "dist", "build", "egg-info",
+]
+
+# Exact paths to exclude (relative to root)
+# excluded_paths = ["CLAUDE.md", "secrets.md"]
+
+# --- Temporal Decay ---
+# Content ages out based on source type. Types not listed here are evergreen.
+
+[decay]
+floor = 0.1  # Old content never fully vanishes
+
+[decay.half_lives]
+trace = 30          # Session traces, dev updates
+teaching = 60       # Course materials
+documentation = 90  # General docs
+code = 90           # Source code
+
+# --- Session Tracking ---
+
+[session]
+surfaced_cap = 500   # Max files tracked for resurfacing penalty
+max_queries = 50     # Query history for circling detection
+
+# --- Mode-Aware Retrieval ---
+# Integrates with Vibe Harness (https://github.com/anuna-research/vibe-harness)
+# If not using Vibe Harness, this section is ignored.
+
+[mode]
+history_path = "~/.vibe-harness/mode-history.jsonl"
+
+[mode.diversity_slots]
+wide = [4, 3, 3]       # (confirmation, divergence, serendipity)
+narrow = [7, 2, 1]
+suppress = [3, 0, 0]
+
+[mode.profiles.explore]
+source_type_multipliers = { code = 0.7, research = 1.3, documentation = 1.0, trace = 1.0, teaching = 1.0, project_claude = 1.0, reference = 1.0 }
+cross_project_boost = 1.4
+already_surfaced_penalty = 0.75
+diversity_profile = "wide"
+
+[mode.profiles.build]
+source_type_multipliers = { code = 1.5, research = 0.7, documentation = 1.3, trace = 1.0, teaching = 0.8, project_claude = 1.2, reference = 1.0 }
+cross_project_boost = 0.8
+already_surfaced_penalty = 0.80
+diversity_profile = "narrow"
+
+[mode.profiles.think-with]
+source_type_multipliers = { code = 0.6, research = 1.5, documentation = 1.0, trace = 1.0, teaching = 1.1, project_claude = 1.0, reference = 1.2 }
+cross_project_boost = 1.3
+already_surfaced_penalty = 0.75
+diversity_profile = "wide"
+
+[mode.profiles.ship]
+source_type_multipliers = { code = 1.4, research = 0.5, documentation = 1.2, trace = 1.0, teaching = 0.6, project_claude = 1.1, reference = 1.0 }
+cross_project_boost = 0.7
+already_surfaced_penalty = 0.85
+diversity_profile = "narrow"
+
+[mode.profiles.cool-off]
+source_type_multipliers = { code = 0.2, research = 0.5, documentation = 0.3, trace = 0.3, teaching = 0.4, project_claude = 0.3, reference = 0.5 }
+cross_project_boost = 1.0
+already_surfaced_penalty = 0.65
+diversity_profile = "suppress"
+
+# --- Classification Rules ---
+# Rules are evaluated in order. First match wins.
+# Each rule maps files to a source_type used for decay and mode scoring.
+#
+# Matchers (use one per rule):
+#   filename       = regex matched against the filename
+#   path_contains  = substring match in the relative path
+#   path_segment   = directory name(s) matched as path segments (avoids substring collisions)
+#   extension      = file extension(s)
+#
+# Options:
+#   case_insensitive = true/false (default varies by matcher)
+
+[classification]
+default = "documentation"
+
+[[classification.rules]]
+type = "trace"
+filename = "^TRACE_|DEV_UPDATE"
+case_insensitive = true
+
+[[classification.rules]]
+type = "project_claude"
+filename = "CLAUDE\\.md$"
+case_insensitive = true
+
+# Add your own rules below. Examples:
+#
+# [[classification.rules]]
+# type = "reference"
+# path_contains = "reference/"
+#
+# [[classification.rules]]
+# type = "research"
+# path_segment = ["research", "publications"]
+#
+# [[classification.rules]]
+# type = "teaching"
+# path_contains = "teaching/"
+
+[[classification.rules]]
+type = "code"
+extension = [".py"]

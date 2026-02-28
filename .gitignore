@@ -1,0 +1,13 @@
+sense.db
+sense.db-wal
+sense.db-shm
+__pycache__/
+*.pyc
+.venv/
+
+# Deployment-specific config (use sense.example.toml as template)
+sense.toml
+
+# Internal design docs (not part of the distributed package)
+ARCHITECTURE-DECISIONS.md
+DESIGN_DIRECTION_relevance-realisation.md
