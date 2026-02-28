@@ -16,7 +16,7 @@ Semantic retrieval MCP server for markdown-heavy project ecosystems. Indexes fil
 - Stores in SQLite with file-hash change detection
 - Serves three MCP tools: `sense_search`, `sense_sync`, `sense_status`
 - Temporal decay: recent content scores higher (configurable half-lives per source type)
-- Mode-aware retrieval: integrates with [Vibe Harness](https://github.com/anuna-research/vibe-harness) for context-sensitive search (optional)
+- Mode-aware retrieval: integrates with [Vibe Harness](https://vibe-harness.xyz) for context-sensitive search (optional)
 
 ## Install
 
@@ -154,4 +154,4 @@ Mode profiles are fully configurable in `sense.toml`.
 
 ## License
 
-Apache 2.0 — Anuna Research Cooperative
+Apache 2.0
