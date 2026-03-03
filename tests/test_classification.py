@@ -97,10 +97,11 @@ class TestClassifySourceType:
         path = CORPUS_DIR / "project-b" / "TRACE_2026-01-15.md"
         assert test_env.classify_source_type(path) == "trace"
 
-    def test_dev_update_prefix_classifies_as_trace(self, test_env):
-        # DEV_UPDATE is part of the trace filename pattern in test_config.toml
+    def test_dev_update_prefix_classifies_as_default(self, test_env):
+        # DEV_UPDATE is NOT in the test config rules (only ^TRACE_ is)
+        # so it falls through to the default classification
         path = CORPUS_DIR / "DEV_UPDATE_2025-03-01.md"
-        assert test_env.classify_source_type(path) == "trace"
+        assert test_env.classify_source_type(path) == "documentation"
 
     def test_claude_md_classifies_as_project_claude(self, test_env):
         path = CORPUS_DIR / "CLAUDE.md"
@@ -182,6 +183,7 @@ class TestHalfLifeHelpers:
         assert test_env.get_half_life("code") == 90
 
     def test_get_half_life_returns_none_for_evergreen(self, test_env):
-        assert test_env.get_half_life("teaching") is None
+        # Types not listed in [decay.half_lives] are evergreen
         assert test_env.get_half_life("research") is None
+        assert test_env.get_half_life("project_claude") is None
         assert test_env.get_half_life("unknown_type") is None
