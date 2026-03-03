@@ -1,12 +1,12 @@
 {
-  "task_id": "generate-fixtures",
+  "task_id": "test-flat-retrieval",
   "token_budget": 8000,
-  "tokens_used": 285,
+  "tokens_used": 337,
   "elements_selected": [
     {
       "source": "plan-meta/description",
-      "content": "Create tests/generate_fixtures.py script that builds the fixture database. Script must: 1) Read all files from tests/fixtures/corpus/ using Sense's own chunk_file() and classify_source_type(). 2) Embed all chunks via OpenAI API. 3) Write to tests/fixtures/sense_test.db with the same schema as the production DB. 4) Define gold-standard queries (minimum 8) covering 4+ source_types and 3+ projects. 5) Embed query texts and store in a query_fixtures table (id, query_text, embedding, expected_files JSON, expected_source_type, rationale). 6) Print summary of chunks indexed and queries stored. Script should use the test_config.toml for classification rules. Include a __main__ guard so it runs standalone.",
-      "token_cost": 176,
+      "content": "Implement integration tests for search_chunks() covering REQ-008. Load fixture DB and patch get_db() to return the fixture connection. Patch embed_query() to return pre-computed query embeddings from query_fixtures table. Test 5 scenarios: semantic query returns relevant document in top 3, project filter restricts results, source_type filter restricts results, results ordered by score descending, limit parameter caps results. Use conftest fixtures for DB loading and query embedding lookup.",
+      "token_cost": 123,
       "priority": "PlanMeta"
     },
     {
@@ -20,8 +20,50 @@
       "content": "Modified 9 files (+750, -0): tests/fixtures/corpus/project-a/CLAUDE.md, tests/fixtures/corpus/project-a/docs/overview.md, tests/fixtures/corpus/project-a/server.py, tests/fixtures/corpus/project-b/TRACE_2026-01-15.md, tests/fixtures/corpus/project-b/TRACE_2026-02-01.md and 4 more",
       "token_cost": 70,
       "priority": "AgentMemory"
+    },
+    {
+      "source": "memory/episodic/task-test-session-changes",
+      "content": "Modified 1 files (+62, -0): tests/test_session.py",
+      "token_cost": 12,
+      "priority": "AgentMemory"
+    },
+    {
+      "source": "memory/episodic/task-test-diversity-changes",
+      "content": "Modified 1 files (+275, -0): tests/test_diversity.py",
+      "token_cost": 13,
+      "priority": "AgentMemory"
+    },
+    {
+      "source": "memory/episodic/task-test-decay-changes",
+      "content": "Modified 1 files (+115, -0): tests/test_decay.py",
+      "token_cost": 12,
+      "priority": "AgentMemory"
+    },
+    {
+      "source": "memory/episodic/task-test-similarity-changes",
+      "content": "Modified 1 files (+55, -0): tests/test_similarity.py",
+      "token_cost": 13,
+      "priority": "AgentMemory"
+    },
+    {
+      "source": "memory/episodic/task-generate-fixtures-changes",
+      "content": "Modified 2 files (+401, -5): .hence/context-manifest.json, tests/generate_fixtures.py",
+      "token_cost": 21,
+      "priority": "AgentMemory"
+    },
+    {
+      "source": "memory/episodic/task-test-chunking-changes",
+      "content": "Modified 1 files (+166, -0): tests/test_chunking.py",
+      "token_cost": 12,
+      "priority": "AgentMemory"
+    },
+    {
+      "source": "memory/episodic/task-test-classification-changes",
+      "content": "Modified 2 files (+188, -1): tests/fixtures/test_config.toml, tests/test_classification.py",
+      "token_cost": 22,
+      "priority": "AgentMemory"
     }
   ],
   "elements_excluded": [],
-  "constructed_at": "2026-03-03T22:40:09Z"
+  "constructed_at": "2026-03-03T22:54:15Z"
 }
