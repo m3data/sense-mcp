@@ -11,9 +11,11 @@ Responsibilities:
     connection with the schema initialised
 """
 
+import json
 import sqlite3
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 import sense_mcp.config as config_module
@@ -26,6 +28,7 @@ import sense_mcp.server as server_module
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 TEST_CONFIG_PATH = FIXTURES_DIR / "test_config.toml"
 CORPUS_DIR = FIXTURES_DIR / "corpus"
+FIXTURE_DB_PATH = FIXTURES_DIR / "sense_test.db"
 
 
 # ---------------------------------------------------------------------------
@@ -105,3 +108,40 @@ def db(test_env, tmp_path):
 
     conn.close()
     server_module._db_conn = None
+
+
+# ---------------------------------------------------------------------------
+# Fixture DB fixtures — opt-in for integration tests that use sense_test.db
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def fixture_db(monkeypatch):
+    """Open a read-only connection to the pre-built fixture DB.
+
+    Patches server.get_db() so search_chunks() and other DB-dependent
+    functions read from the fixture data without touching the per-test
+    tmp_path DB set up by test_env.
+
+    Requires tests/fixtures/sense_test.db to exist (run
+    ``python tests/generate_fixtures.py`` to build it).
+    """
+    conn = sqlite3.connect(f"file:{FIXTURE_DB_PATH}?mode=ro", uri=True)
+    monkeypatch.setattr(server_module, "get_db", lambda: conn)
+    yield conn
+    conn.close()
+
+
+@pytest.fixture
+def query_embedding_lookup(fixture_db):
+    """Return a dict mapping query_text -> pre-computed embedding (np.ndarray).
+
+    Reads from the query_fixtures table in the fixture DB, which is
+    populated by tests/generate_fixtures.py.
+    """
+    rows = fixture_db.execute(
+        "SELECT query_text, embedding FROM query_fixtures"
+    ).fetchall()
+    return {
+        row[0]: np.frombuffer(row[1], dtype=np.float32)
+        for row in rows
+    }
