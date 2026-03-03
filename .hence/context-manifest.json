@@ -1,27 +1,15 @@
 {
-  "task_id": "test-session",
+  "task_id": "test-corpus",
   "token_budget": 8000,
-  "tokens_used": 222,
+  "tokens_used": 181,
   "elements_selected": [
     {
       "source": "plan-meta/description",
-      "content": "Implement tests for session tracking functions covering REQ-006. Test 6 scenarios: get_surfaced_penalty returns 1.0 for unseen files, returns penalty^count for seen files, floors at 0.05, detect_circling_topics returns files from similar queries, returns empty set with no prior queries, record_surfaced caps at surfaced_cap. Tests must reset _session_surfaced and _session_queries globals between test methods — use the conftest session reset fixture.",
-      "token_cost": 113,
+      "content": "Create the synthetic test corpus in tests/fixtures/corpus/. Nine files across three projects plus root, with thematically distinct content so semantic similarity is meaningful. project-a theme: coherence and entrainment (CLAUDE.md, server.py, docs/overview.md). project-b theme: teaching and pedagogy (two TRACE files with different dates, research/findings.md). project-c theme: cooperative economics (README.md, analysis.py). Root: root-file.md about general ecosystem overview. Each file should be 200-600 words of realistic content — not lorem ipsum. The content needs to be semantically distinct enough that a query about 'entrainment' surfaces project-a files, a query about 'pedagogy' surfaces project-b files, etc.",
+      "token_cost": 181,
       "priority": "PlanMeta"
-    },
-    {
-      "source": "memory/episodic/task-test-scaffold-changes",
-      "content": "Modified 9 files (+294, -1): pyproject.toml, tests/__init__.py, tests/conftest.py, tests/fixtures/corpus/CLAUDE.md, tests/fixtures/corpus/README.md and 4 more",
-      "token_cost": 39,
-      "priority": "AgentMemory"
-    },
-    {
-      "source": "memory/episodic/task-test-corpus-changes",
-      "content": "Modified 9 files (+750, -0): tests/fixtures/corpus/project-a/CLAUDE.md, tests/fixtures/corpus/project-a/docs/overview.md, tests/fixtures/corpus/project-a/server.py, tests/fixtures/corpus/project-b/TRACE_2026-01-15.md, tests/fixtures/corpus/project-b/TRACE_2026-02-01.md and 4 more",
-      "token_cost": 70,
-      "priority": "AgentMemory"
     }
   ],
   "elements_excluded": [],
-  "constructed_at": "2026-03-03T22:40:08Z"
+  "constructed_at": "2026-03-03T22:24:04Z"
 }
