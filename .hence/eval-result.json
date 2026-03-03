@@ -1,0 +1,32 @@
+{
+  "recommended_status": "completed",
+  "confidence": 1.0,
+  "exit_code": 0,
+  "diff_summary": {
+    "files_changed": 9,
+    "insertions": 294,
+    "deletions": 1,
+    "file_list": [
+      "pyproject.toml",
+      "tests/__init__.py",
+      "tests/conftest.py",
+      "tests/fixtures/corpus/CLAUDE.md",
+      "tests/fixtures/corpus/README.md",
+      "tests/fixtures/corpus/TRACE_2025-01-01_sample-session.md",
+      "tests/fixtures/corpus/sample_module.py",
+      "tests/fixtures/test_config.toml",
+      "uv.lock"
+    ],
+    "dirty_files": 1
+  },
+  "learnings": [
+    {
+      "key": "task-test-scaffold-changes",
+      "content": "Modified 9 files (+294, -1): pyproject.toml, tests/__init__.py, tests/conftest.py, tests/fixtures/corpus/CLAUDE.md, tests/fixtures/corpus/README.md and 4 more",
+      "memory_type": "episodic",
+      "confidence": 0.8
+    }
+  ],
+  "branch_name": "hence/test-scaffold-v2",
+  "evaluated_at": "2026-03-03T22:28:03Z"
+}
