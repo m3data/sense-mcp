@@ -392,3 +392,64 @@
   (given completed-test-similarity)
   (given spawn-result-v1-test-similarity-by-claude)
 )
+
+(claims agent:claude
+  :at "2026-03-03T22:44:16Z"
+  (given completed-generate-fixtures)
+  (given spawn-result-v1-generate-fixtures-by-claude)
+)
+
+(claims agent:claude
+  :at "2026-03-03T22:44:36Z"
+  (given completed-test-chunking)
+  (given spawn-result-v1-test-chunking-by-claude)
+)
+
+(claims agent:claude
+  :at "2026-03-03T22:53:35Z"
+  (given completed-test-classification)
+  (given spawn-result-v1-test-classification-by-claude)
+)
+
+(claims agent:claude
+  :at "2026-03-03T22:54:15Z"
+  (given claim-v1-test-flat-retrieval-by-claude)
+  (normally r-cl-state-v1-test-flat-retrieval-by-claude claim-v1-test-flat-retrieval-by-claude state-claimed-v1-test-flat-retrieval-by-claude)
+  (normally r-cl-chain-v1-test-flat-retrieval-by-claude state-claimed-v1-test-flat-retrieval-by-claude claimed-test-flat-retrieval)
+)
+
+(claims agent:claude
+  :at "2026-03-03T22:54:16Z"
+  (given claim-v1-test-mode-retrieval-by-claude)
+  (normally r-cl-state-v1-test-mode-retrieval-by-claude claim-v1-test-mode-retrieval-by-claude state-claimed-v1-test-mode-retrieval-by-claude)
+  (normally r-cl-chain-v1-test-mode-retrieval-by-claude state-claimed-v1-test-mode-retrieval-by-claude claimed-test-mode-retrieval)
+)
+
+(claims agent:claude
+  :at "2026-03-03T22:54:16Z"
+  (given claim-v1-test-gold-standard-by-claude)
+  (normally r-cl-state-v1-test-gold-standard-by-claude claim-v1-test-gold-standard-by-claude state-claimed-v1-test-gold-standard-by-claude)
+  (normally r-cl-chain-v1-test-gold-standard-by-claude state-claimed-v1-test-gold-standard-by-claude claimed-test-gold-standard)
+)
+
+(claims agent:claude
+  :at "2026-03-03T22:57:14Z"
+  (given completed-test-flat-retrieval)
+  (given spawn-result-v1-test-flat-retrieval-by-claude)
+)
+
+(claims agent:claude
+  :at "2026-03-03T22:59:44Z"
+  (given completed-test-mode-retrieval)
+  (given spawn-result-v1-test-mode-retrieval-by-claude)
+)
+
+(claims agent:claude
+  :at "2026-03-03T23:01:34Z"
+  (given completed-test-gold-standard)
+  (given spawn-result-v1-test-gold-standard-by-claude)
+)
+
+(claims agent:claude
+  :at "2026-03-03T23:15:42Z"
+  (given completed-full-verification))
