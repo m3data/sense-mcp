@@ -11,7 +11,6 @@ Responsibilities:
     connection with the schema initialised
 """
 
-import json
 import sqlite3
 from pathlib import Path
 

@@ -4,22 +4,22 @@
   "exit_code": 0,
   "diff_summary": {
     "files_changed": 2,
-    "insertions": 172,
-    "deletions": 0,
+    "insertions": 401,
+    "deletions": 5,
     "file_list": [
-      "tests/conftest.py",
-      "tests/test_flat_retrieval.py"
+      ".hence/context-manifest.json",
+      "tests/generate_fixtures.py"
     ],
-    "dirty_files": 3
+    "dirty_files": 0
   },
   "learnings": [
     {
-      "key": "task-test-flat-retrieval-changes",
-      "content": "Modified 2 files (+172, -0): tests/conftest.py, tests/test_flat_retrieval.py",
+      "key": "task-generate-fixtures-changes",
+      "content": "Modified 2 files (+401, -5): .hence/context-manifest.json, tests/generate_fixtures.py",
       "memory_type": "episodic",
       "confidence": 0.8
     }
   ],
-  "branch_name": "hence/test-flat-retrieval-v1",
-  "evaluated_at": "2026-03-03T22:57:14Z"
+  "branch_name": "hence/generate-fixtures-v1",
+  "evaluated_at": "2026-03-03T22:44:16Z"
 }
