@@ -1,8 +1,9 @@
-"""Sense — Semantic Retrieval MCP Server.
+"""Sense — Ambient Relevance for AI Conversations.
 
-Indexes a markdown-heavy project ecosystem and makes cross-project connections
-queryable by semantic similarity with temporal decay. Supports mode-aware
-retrieval when paired with Vibe Harness.
+Indexes a project ecosystem and injects relevant context into every
+conversation automatically. Weights by recency (temporal decay), adapts
+to working mode (Vibe Harness integration), and structures results for
+productive connections, not just nearest-match retrieval.
 
 Configuration is loaded from sense.toml (see sense.example.toml).
 """

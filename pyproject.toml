@@ -1,7 +1,7 @@
 [project]
 name = "sense-mcp"
 version = "0.1.0"
-description = "Semantic retrieval MCP server for markdown-heavy project ecosystems"
+description = "Ambient relevance injection for AI conversations — indexes your project ecosystem, surfaces relevant context automatically"
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.11"

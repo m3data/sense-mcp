@@ -6,19 +6,33 @@
 ![Python](https://img.shields.io/badge/PYTHON-3.11+-green?style=for-the-badge&labelColor=10b981&color=047857)
 ![MCP](https://img.shields.io/badge/MCP-stdio-purple?style=for-the-badge&labelColor=7c3aed&color=5b21b6)
 
-Semantic retrieval MCP server for markdown-heavy project ecosystems. Indexes files, chunks them, embeds with OpenAI, and serves search over MCP (Model Context Protocol).
+Relevant context from your project ecosystem, injected into every AI conversation — automatically, weighted by recency, and shaped by what you're doing.
 
-## What it does
+## The problem
 
-- Walks a project root, discovers markdown/text/code files
-- Chunks by `##` sections (markdown) or paragraphs (fallback)
-- Embeds via OpenAI `text-embedding-3-small`
-- Stores in SQLite with file-hash change detection
-- Serves three MCP tools: `sense_search`, `sense_sync`, `sense_status`
-- Temporal decay: recent content scores higher (configurable half-lives per source type)
-- Mode-aware retrieval: integrates with [Vibe Harness](https://vibe-harness.xyz) for context-sensitive search (optional)
+You work across a project ecosystem. There's documentation, code, research, decisions, regulatory files, customer feedback, session traces — it's all there. But when you're in a conversation with your AI agent, none of it shows up unless you go find it and paste it in. The AI agent is capable but contextually blind to your ecosystem. Particularly if you are running multiple projects, the relevant context is a moving target. You can't predict what you'll need in advance, and you usually won't know what you needed until after the fact.
 
-## Install
+Memory and RAG tools try to solve this by storing and retrieving everything. But recall is not relevance. Dumping context into a prompt without discrimination buries the useful connections under volume. And search requires you to know what you're looking for — which means it can't surface the connections you didn't know to make.
+
+## What Sense does
+
+Sense indexes your project ecosystem and injects relevant context into every conversation automatically. You don't search. You don't paste. Relevant prior work surfaces based on what you're talking about right now.
+
+It runs as an [MCP](https://modelcontextprotocol.io/) server for [Claude Code](https://docs.anthropic.com/en/docs/claude-code), with a companion hook that fires on every prompt. The result: your AI partner always has peripheral awareness of the ecosystem it's working in.
+
+### How it's different
+
+**Ambient, not invoked.** The auto-query hook fires on every prompt. Context arrives without being asked for. This is the primary interaction pattern — not a search box you type into, but a layer that's always running in the background, shaping what's visible.
+
+**Knowledge metabolises.** A session trace from yesterday and a reference document from last year are not equally alive. Sense weights them differently — recent work surfaces more readily, old documentation fades, foundational reference stays evergreen. Different types of content have different half-lives because they are different kinds of knowledge.
+
+When paired with [Vibe Harness](https://github.com/m3data/vibe-harness-mcp), what surfaces also changes based on what you're doing. Exploring widens the aperture — cross-project connections, unexpected adjacencies. Building narrows it to code and documentation in the current project. The same corpus looks different depending on your working mode.
+
+**Source-classified, diversity-structured.** Files are classified into types (traces, code, research, documentation, reference, teaching), each with distinct decay rates and mode weightings. Results are structured into confirmation slots (highest relevance), divergence slots (what challenges the current frame), and serendipity slots (from projects you weren't looking at). The goal is productive connections, not just the nearest match.
+
+## Quick start
+
+### Install
 
 ```bash
 cd sense-mcp
@@ -27,11 +41,11 @@ source .venv/bin/activate
 pip install -e .
 ```
 
-Requires Python 3.11+ (uses `tomllib` from stdlib).
+Requires Python 3.11+.
 
-## Configure
+### Configure
 
-Copy the example config and adjust:
+Copy the example config and adjust for your ecosystem:
 
 ```bash
 cp sense.example.toml sense.toml
@@ -39,24 +53,16 @@ cp sense.example.toml sense.toml
 
 At minimum, set:
 
-- `[corpus] root` — directory to index (default: parent of sense-mcp/)
+- `[corpus] root` — the directory to index (default: parent of sense-mcp/)
 - `[corpus] env_file` — path to `.env` with your `OPENAI_API_KEY`
 - `[corpus] excluded_dirs` — directories to skip
-- `[[classification.rules]]` — rules mapping paths to source types
+- `[[classification.rules]]` — rules mapping your file paths to source types
 
-See `sense.example.toml` for all options with documentation.
+See `sense.example.toml` for all options with inline documentation.
 
-### Environment variables
+### Wire up to Claude Code
 
-| Variable | Purpose |
-|----------|---------|
-| `OPENAI_API_KEY` | Required. Embedding API key. |
-| `SENSE_CONFIG` | Optional. Absolute path to config file (overrides default location). |
-| `SENSE_ROOT` | Optional. Corpus root (overrides config `[corpus] root`). |
-
-## Wire up to Claude Code
-
-Add to your Claude Code MCP settings (`.claude.json` or via `claude mcp add`):
+Add to your MCP settings (`.claude.json` or via `claude mcp add`):
 
 ```json
 {
@@ -72,15 +78,11 @@ Add to your Claude Code MCP settings (`.claude.json` or via `claude mcp add`):
 }
 ```
 
-## Auto-query hook (optional)
+### Enable ambient context (recommended)
 
-The companion hook at `.claude/hooks/sense-auto-query.py` fires on every user prompt and injects relevant context automatically. It:
+The companion hook at `.claude/hooks/sense-auto-query.py` fires on every user prompt and injects the top 3 relevant results as `<sense-context>` tags. This is what makes Sense ambient rather than on-demand.
 
-- Gates on prompt length, cooldown, and continuation signals
-- Opens the SQLite DB in read-only mode (coexists with running MCP server)
-- Injects top-3 results as `<sense-context>` tags
-
-To wire it up, add to `.claude/settings.json`:
+Add to `.claude/settings.json`:
 
 ```json
 {
@@ -95,62 +97,91 @@ To wire it up, add to `.claude/settings.json`:
 }
 ```
 
-## Skills (slash commands)
-
-Copy `skills/sense/` and `skills/sense-sync/` into your project's `.claude/skills/` directory to enable slash commands:
-
-```bash
-cp -r /path/to/sense-mcp/skills/* /path/to/your-project/.claude/skills/
-```
-
-Then use:
-- `/sense <query>` — search with optional `--project`, `--type`, `--limit`, `--mode` flags
-- `/sense` (no args) — auto-synthesizes a query from conversation context
-- `/sense-sync` — rebuild the index
-- `/sense-sync status` — show index stats without re-indexing
+The hook gates on prompt length, cooldown, and continuation signals. It opens the SQLite DB in read-only mode and coexists safely with the running MCP server.
 
 ## Tools
 
 ### `sense_search`
 
-Search by natural language. Returns ranked results with similarity scores, temporal decay, and content previews.
+Search by natural language. Returns ranked results with similarity scores, temporal decay, and content previews. Supports optional filters: `project`, `source_type`, `limit`, `mode`.
 
 ### `sense_sync`
 
-Build or update the index. Skips unchanged files (SHA-256 hash). Safe to run repeatedly.
+Build or update the index. Uses SHA-256 file hashing for change detection — unchanged files are skipped. Safe to run repeatedly.
 
 ### `sense_status`
 
-Show index statistics: chunk counts by project and source type, total tokens, last sync time.
+Index statistics: chunk counts by project and source type, total tokens, last sync time.
 
-## Classification
+## Slash commands
 
-Files are classified into source types using ordered rules in `sense.toml`. Each rule has a type and a matcher:
+If using Claude Code skills, copy `skills/sense/` and `skills/sense-sync/` into your `.claude/skills/` directory:
+
+- `/sense <query>` — search with optional flags (`--project`, `--type`, `--limit`, `--mode`)
+- `/sense` (no args) — auto-synthesizes a query from conversation context
+- `/sense-sync` — rebuild the index
+- `/sense-sync status` — show index stats
+
+## Configuration reference
+
+### Temporal decay
+
+Content ages out based on source type. Configure half-lives in days:
+
+```toml
+[decay]
+floor = 0.1  # Old content never fully vanishes
+
+[decay.half_lives]
+trace = 30          # Session traces
+market-research = 60       # Market research
+documentation = 90  # General docs
+code = 90           # Source code
+# Types not listed are evergreen (no decay)
+```
+
+### Classification rules
+
+Rules are evaluated in order. First match wins. Each rule maps files to a source type used for decay and mode scoring.
 
 | Matcher | Description |
 |---------|-------------|
-| `filename` | Regex matched against the filename |
-| `path_contains` | Substring match in the relative path |
-| `path_segment` | Directory name(s) matched as path segments |
+| `filename` | Regex against the filename |
+| `path_contains` | Substring match in relative path |
+| `path_segment` | Directory name(s) as path segments |
 | `extension` | File extension(s) |
 
-First matching rule wins. Unmatched files get the `[classification] default` type (default: `documentation`).
+### Mode-aware retrieval
 
-Source types control temporal decay (via `[decay.half_lives]`) and mode-aware scoring (via `[mode.profiles]`).
+When paired with [Vibe Harness](https://github.com/m3data/vibe-harness-mcp), search results are shaped by the current working mode:
 
-## Mode-aware retrieval
+| Mode | Behaviour |
+|------|-----------|
+| **explore** | Cross-project boost, research-heavy, wide diversity slots |
+| **build** | Code-focused, same-project, narrow results |
+| **think-with** | Research + reference, wide diversity, unexpected adjacencies |
+| **ship** | Code + docs, narrow, high-confidence results |
+| **cool-off** | Suppressed surfacing, minimal interruption |
 
-When paired with Vibe Harness, search results are shaped by the current working mode:
+Mode profiles are fully configurable in `sense.toml` under `[mode.profiles.*]`.
 
-| Mode | Bias |
-|------|------|
-| explore | Cross-project, research-heavy, wide diversity |
-| build | Code-focused, narrow, same-project |
-| think-with | Research + reference, wide diversity |
-| ship | Code + docs, narrow, same-project |
-| cool-off | Suppressed results, minimal surfacing |
+### Environment variables
 
-Mode profiles are fully configurable in `sense.toml`.
+| Variable | Purpose |
+|----------|---------|
+| `OPENAI_API_KEY` | Required. Embedding API key. |
+| `SENSE_CONFIG` | Optional. Absolute path to config file. |
+| `SENSE_ROOT` | Optional. Corpus root (overrides config). |
+
+## Design direction
+
+Sense is also a research artifact. It investigates whether relevance realisation — the pre-reflective process by which organisms determine what matters — can be partially externalised into infrastructure.
+
+The current implementation composes three signals: semantic similarity, temporal decay, and mode awareness. The architecture is designed to accommodate additional signals as they become available: decision anchoring (epistemic posture), graph adjacency (structural connections via [zetl](https://github.com/anuna-research/zetl)), and biosignal responsiveness (physiological state influencing what surfaces).
+
+The system scaffolds the human's relevance realisation — it does not replace it. But through its responsiveness to working context, it participates in the coupling dynamic that produces relevance.
+
+See `DESIGN_DIRECTION_relevance-realisation.md` and `ARCHITECTURE-DECISIONS.md` for the full design rationale.
 
 ## License
 
