@@ -1,0 +1,455 @@
+; Sense Retrieval Evaluation Suite — Implementation Plan
+; Spawn-ready: each task has description + acceptance for agent execution
+; Based on: specs/SPEC-001-retrieval-evals.md
+
+(meta plan
+  (id "SENSE-EVAL-001")
+  (title "Sense Retrieval Evaluation Suite")
+  (version "1.0.0")
+  (status "active")
+  (created "2026-03-04")
+  (author "agent:kairos")
+  (description "Implement Layer 1 retrieval evals for Sense MCP: pure function tests, fixture infrastructure, integration tests, and gold-standard retrieval pairs. Spec: specs/SPEC-001-retrieval-evals.md"))
+
+;; ═══════════════════════════════════════════════════════════
+;; AGENTS
+;; ═══════════════════════════════════════════════════════════
+
+(given agent-claude-available)
+(given agent-mat-available)
+
+;; ═══════════════════════════════════════════════════════════
+;; PHASE 0: TEST INFRASTRUCTURE
+;; Must exist before any test tasks can run
+;; ═══════════════════════════════════════════════════════════
+
+(given task-test-scaffold)
+(given no-deps-test-scaffold)
+
+(meta task-test-scaffold
+  (description "Create the test infrastructure skeleton. Files: tests/conftest.py (shared fixtures, config patching, session state reset, DB fixture loading), tests/fixtures/test_config.toml (minimal Sense config for tests — points at fixture corpus, uses fixture DB path, has known classification rules and decay settings). Add pytest and pytest dependencies to pyproject.toml under [project.optional-dependencies] test group. Create tests/__init__.py. Verify pytest discovers and runs with zero tests collected.")
+  (acceptance "1. tests/conftest.py exists with: reload_config() fixture loading test_config.toml, session state reset fixture clearing _session_surfaced and _session_queries, fixture DB connection fixture. 2. tests/fixtures/test_config.toml exists with known values for all decay half-lives, classification rules, and corpus root pointing to tests/fixtures/corpus/. 3. pyproject.toml has [project.optional-dependencies] test = ['pytest>=8.0']. 4. Running 'python -m pytest tests/' from sense-mcp/ collects 0 tests without errors.")
+  (phase "0")
+  (priority "critical"))
+
+(normally r-ready-test-scaffold
+  (and task-test-scaffold no-deps-test-scaffold)
+  ready-test-scaffold)
+
+(normally r-assign-test-scaffold
+  (and ready-test-scaffold agent-claude-available)
+  assign-to-test-scaffold-claude)
+
+;; ---
+
+(given task-test-corpus)
+(given no-deps-test-corpus)
+
+(meta task-test-corpus
+  (description "Create the synthetic test corpus in tests/fixtures/corpus/. Nine files across three projects plus root, with thematically distinct content so semantic similarity is meaningful. project-a theme: coherence and entrainment (CLAUDE.md, server.py, docs/overview.md). project-b theme: teaching and pedagogy (two TRACE files with different dates, research/findings.md). project-c theme: cooperative economics (README.md, analysis.py). Root: root-file.md about general ecosystem overview. Each file should be 200-600 words of realistic content — not lorem ipsum. The content needs to be semantically distinct enough that a query about 'entrainment' surfaces project-a files, a query about 'pedagogy' surfaces project-b files, etc.")
+  (acceptance "1. All 9 files exist per SPEC-001 test corpus table. 2. Each file contains 200-600 words of thematically coherent content. 3. project-a files are about coherence/entrainment. 4. project-b files are about teaching/pedagogy. 5. project-c files are about cooperative economics. 6. TRACE files have correct naming pattern (TRACE_YYYY-MM-DD_description.md). 7. One trace dated 2026-01-15 (old, high decay) and one dated 2026-03-01 (recent, low decay). 8. Python files contain actual code-like content, not prose.")
+  (phase "0"))
+
+(normally r-ready-test-corpus
+  (and task-test-corpus no-deps-test-corpus)
+  ready-test-corpus)
+
+(normally r-assign-test-corpus
+  (and ready-test-corpus agent-claude-available)
+  assign-to-test-corpus-claude)
+
+;; ═══════════════════════════════════════════════════════════
+;; PHASE A: PURE FUNCTION TESTS
+;; Can start once scaffold exists. No fixture DB needed.
+;; ═══════════════════════════════════════════════════════════
+
+(given task-test-decay)
+
+(meta task-test-decay
+  (description "Implement tests for compute_decay() covering REQ-001. Test all 8 scenarios: evergreen returns 1.0, today returns 1.0, one half-life returns ~0.5 (tolerance 0.05), two half-lives returns ~0.25, very old content floors at decay_floor, missing date returns decay_floor, invalid date returns decay_floor, future date clamped to now. Use the test config fixture to control half-life values and decay floor. For time-sensitive tests, compute expected values relative to the test execution date rather than hardcoding dates.")
+  (acceptance "1. tests/test_pure.py contains TestComputeDecay class with 8+ test methods. 2. All 8 REQ-001 scenarios covered. 3. Tests use conftest fixtures for config. 4. All tests pass. 5. No external API calls.")
+  (phase "A")
+  (spec-ref "REQ-001, TEST-001"))
+
+(normally r-ready-test-decay
+  (and task-test-decay completed-test-scaffold)
+  ready-test-decay)
+
+(normally r-assign-test-decay
+  (and ready-test-decay agent-claude-available)
+  assign-to-test-decay-claude)
+
+;; ---
+
+(given task-test-chunking)
+
+(meta task-test-chunking
+  (description "Implement tests for chunk_file() and _split_paragraphs() covering REQ-002. Test 8 scenarios: small files return single chunk, markdown splits on ## headers, section headers preserved in content, large sections sub-split by paragraph, paragraph merging respects max_tokens, empty paragraphs excluded, non-markdown falls through to paragraph splitting, section metadata propagates through sub-splits. Use synthetic markdown strings as input — no file I/O needed for most tests.")
+  (acceptance "1. tests/test_pure.py contains TestChunking class with 8+ test methods. 2. All 8 REQ-002 scenarios covered. 3. Tests verify chunk count, content, section labels, and token_count fields. 4. All tests pass. 5. No external API calls.")
+  (phase "A")
+  (spec-ref "REQ-002, TEST-002"))
+
+(normally r-ready-test-chunking
+  (and task-test-chunking completed-test-scaffold)
+  ready-test-chunking)
+
+(normally r-assign-test-chunking
+  (and ready-test-chunking agent-claude-available)
+  assign-to-test-chunking-claude)
+
+;; ---
+
+(given task-test-similarity)
+
+(meta task-test-similarity
+  (description "Implement tests for cosine_similarity(), count_tokens(), and _truncate_for_embedding() covering REQ-003. Six tests: identical vectors return 1.0, orthogonal vectors return 0.0, zero vectors return 0.0 without error, count_tokens returns correct count for known strings, truncation shortens text beyond limit, truncation passes through text within limit. Use numpy arrays directly — no embedding API needed.")
+  (acceptance "1. tests/test_pure.py contains TestSimilarity class with 6+ test methods. 2. All 6 REQ-003 scenarios covered. 3. All tests pass. 4. No external API calls.")
+  (phase "A")
+  (spec-ref "REQ-003, TEST-003"))
+
+(normally r-ready-test-similarity
+  (and task-test-similarity completed-test-scaffold)
+  ready-test-similarity)
+
+(normally r-assign-test-similarity
+  (and ready-test-similarity agent-claude-available)
+  assign-to-test-similarity-claude)
+
+;; ---
+
+(given task-test-classification)
+
+(meta task-test-classification
+  (description "Implement tests for classify_source_type() and related config functions covering REQ-004 and REQ-007. Test classification rules: TRACE_ and DEV_UPDATE filenames classify as trace, CLAUDE.md as project_claude, .py as code, unmatched as default. Test config functions: _deep_merge recursive merge, reload_config replaces singleton, is_evergreen for types not in half_lives, get_half_life returns correct values. Use test_config.toml with known rules.")
+  (acceptance "1. tests/test_pure.py contains TestClassification and TestConfig classes. 2. All REQ-004 scenarios (6) and REQ-007 scenarios (6) covered. 3. Classification tests use Path objects with realistic filenames. 4. Config tests verify reload_config clears the singleton. 5. All tests pass.")
+  (phase "A")
+  (spec-ref "REQ-004, REQ-007, TEST-004, TEST-007"))
+
+(normally r-ready-test-classification
+  (and task-test-classification completed-test-scaffold)
+  ready-test-classification)
+
+(normally r-assign-test-classification
+  (and ready-test-classification agent-claude-available)
+  assign-to-test-classification-claude)
+
+;; ---
+
+(given task-test-diversity)
+
+(meta task-test-diversity
+  (description "Implement tests for assemble_diverse_results() covering REQ-005. Test 8 scenarios: results split into correct pools, confirmation filled first from top-ranked, divergence prefers different source_type or project, serendipity prefers unseen projects, below min_similarity excluded, overflow fills remaining slots, slot_type correctly assigned, no duplicate file_paths across pools. Create synthetic result dicts with controlled scores, source_types, projects, and file_paths.")
+  (acceptance "1. tests/test_pure.py contains TestDiversityInjection class with 8+ test methods. 2. All 8 REQ-005 scenarios covered. 3. Tests use synthetic result lists with known scores. 4. Tests verify slot_type assignments and dedup. 5. All tests pass.")
+  (phase "A")
+  (spec-ref "REQ-005, TEST-005"))
+
+(normally r-ready-test-diversity
+  (and task-test-diversity completed-test-scaffold)
+  ready-test-diversity)
+
+(normally r-assign-test-diversity
+  (and ready-test-diversity agent-claude-available)
+  assign-to-test-diversity-claude)
+
+;; ---
+
+(given task-test-session)
+
+(meta task-test-session
+  (description "Implement tests for session tracking functions covering REQ-006. Test 6 scenarios: get_surfaced_penalty returns 1.0 for unseen files, returns penalty^count for seen files, floors at 0.05, detect_circling_topics returns files from similar queries, returns empty set with no prior queries, record_surfaced caps at surfaced_cap. Tests must reset _session_surfaced and _session_queries globals between test methods — use the conftest session reset fixture.")
+  (acceptance "1. tests/test_pure.py contains TestSessionTracking class with 6+ test methods. 2. All 6 REQ-006 scenarios covered. 3. Session state is reset between tests (verify via fixture). 4. Circling detection test uses numpy arrays with known similarity. 5. All tests pass.")
+  (phase "A")
+  (spec-ref "REQ-006, TEST-006"))
+
+(normally r-ready-test-session
+  (and task-test-session completed-test-scaffold)
+  ready-test-session)
+
+(normally r-assign-test-session
+  (and ready-test-session agent-claude-available)
+  assign-to-test-session-claude)
+
+;; ═══════════════════════════════════════════════════════════
+;; PHASE B: FIXTURE GENERATION
+;; Needs test corpus + scaffold. Requires OpenAI API key.
+;; ═══════════════════════════════════════════════════════════
+
+(given task-generate-fixtures)
+
+(meta task-generate-fixtures
+  (description "Create tests/generate_fixtures.py script that builds the fixture database. Script must: 1) Read all files from tests/fixtures/corpus/ using Sense's own chunk_file() and classify_source_type(). 2) Embed all chunks via OpenAI API. 3) Write to tests/fixtures/sense_test.db with the same schema as the production DB. 4) Define gold-standard queries (minimum 8) covering 4+ source_types and 3+ projects. 5) Embed query texts and store in a query_fixtures table (id, query_text, embedding, expected_files JSON, expected_source_type, rationale). 6) Print summary of chunks indexed and queries stored. Script should use the test_config.toml for classification rules. Include a __main__ guard so it runs standalone.")
+  (acceptance "1. tests/generate_fixtures.py exists and runs successfully with OPENAI_API_KEY set. 2. tests/fixtures/sense_test.db is created with chunks table populated. 3. query_fixtures table contains 8+ gold-standard queries. 4. Queries cover coherence/entrainment, pedagogy/teaching, cooperative economics, code-specific, cross-project, trace-specific topics. 5. Script prints summary showing chunk count, query count, and per-project breakdown. 6. Fixture DB is committed to repo.")
+  (phase "B")
+  (priority "critical")
+  (spec-ref "ADR-001, REQ-010"))
+
+(normally r-ready-generate-fixtures
+  (and task-generate-fixtures completed-test-scaffold completed-test-corpus)
+  ready-generate-fixtures)
+
+;; API key available in sense-mcp/.env — agent-safe
+(normally r-assign-generate-fixtures
+  (and ready-generate-fixtures agent-claude-available)
+  assign-to-generate-fixtures-claude)
+
+;; ═══════════════════════════════════════════════════════════
+;; PHASE C: INTEGRATION TESTS
+;; Needs fixture DB from Phase B
+;; ═══════════════════════════════════════════════════════════
+
+(given task-test-flat-retrieval)
+
+(meta task-test-flat-retrieval
+  (description "Implement integration tests for search_chunks() covering REQ-008. Load fixture DB and patch get_db() to return the fixture connection. Patch embed_query() to return pre-computed query embeddings from query_fixtures table. Test 5 scenarios: semantic query returns relevant document in top 3, project filter restricts results, source_type filter restricts results, results ordered by score descending, limit parameter caps results. Use conftest fixtures for DB loading and query embedding lookup.")
+  (acceptance "1. tests/test_integration.py contains TestFlatRetrieval class with 5+ test methods. 2. All 5 REQ-008 scenarios covered. 3. Tests load from fixture DB — no OpenAI API calls. 4. Tests patch get_db() and embed_query() via conftest fixtures. 5. All tests pass.")
+  (phase "C")
+  (spec-ref "REQ-008, TEST-008"))
+
+(normally r-ready-test-flat-retrieval
+  (and task-test-flat-retrieval completed-generate-fixtures completed-test-scaffold)
+  ready-test-flat-retrieval)
+
+(normally r-assign-test-flat-retrieval
+  (and ready-test-flat-retrieval agent-claude-available)
+  assign-to-test-flat-retrieval-claude)
+
+;; ---
+
+(given task-test-mode-retrieval)
+
+(meta task-test-mode-retrieval
+  (description "Implement integration tests for search_chunks_contextual() covering REQ-009. Same fixture infrastructure as flat retrieval. Test 7 scenarios: no mode falls through to flat search, mode='none' bypasses detection, build mode boosts code, explore mode boosts cross-project, cool-off suppresses all, metadata dict has correct fields, session tracking accumulates across calls. For mode tests, pass mode parameter explicitly rather than mocking detect_current_mode().")
+  (acceptance "1. tests/test_integration.py contains TestModeAwareRetrieval class with 7+ test methods. 2. All 7 REQ-009 scenarios covered. 3. Tests verify mode multiplier effects on result ordering. 4. Metadata assertions check mode, diversity_profile, slots fields. 5. Session accumulation test makes multiple calls and verifies resurfaced_count increases. 6. All tests pass.")
+  (phase "C")
+  (spec-ref "REQ-009, TEST-009"))
+
+(normally r-ready-test-mode-retrieval
+  (and task-test-mode-retrieval completed-generate-fixtures completed-test-scaffold)
+  ready-test-mode-retrieval)
+
+(normally r-assign-test-mode-retrieval
+  (and ready-test-mode-retrieval agent-claude-available)
+  assign-to-test-mode-retrieval-claude)
+
+;; ---
+
+(given task-test-gold-standard)
+
+(meta task-test-gold-standard
+  (description "Implement gold-standard retrieval pair tests covering REQ-010. Create tests/test_gold_standard.py with parameterised test cases. Each case loads a pre-computed query embedding from query_fixtures and asserts the expected file appears in the top 3 search results. Test cases should be documented with rationale. Minimum 8 pairs covering 4+ source_types, 3+ projects, and 2+ cross-project retrievals.")
+  (acceptance "1. tests/test_gold_standard.py exists with parameterised test cases. 2. Minimum 8 gold-standard pairs. 3. Each pair has query, expected_files, expected_source_type, and rationale. 4. At least 4 different source_types covered. 5. At least 3 different projects covered. 6. At least 2 cross-project retrieval tests. 7. All tests pass — expected files appear in top 3. 8. If any pair fails, document it as a known limitation with the actual similarity score.")
+  (phase "C")
+  (spec-ref "REQ-010, TEST-010"))
+
+(normally r-ready-test-gold-standard
+  (and task-test-gold-standard completed-generate-fixtures completed-test-scaffold)
+  ready-test-gold-standard)
+
+(normally r-assign-test-gold-standard
+  (and ready-test-gold-standard agent-claude-available)
+  assign-to-test-gold-standard-claude)
+
+;; ═══════════════════════════════════════════════════════════
+;; PHASE D: VERIFICATION
+;; All tests exist. Run full suite. Verify NFRs.
+;; ═══════════════════════════════════════════════════════════
+
+(given task-full-verification)
+
+(meta task-full-verification
+  (description "Run the complete test suite and verify non-functional requirements. Run python -m pytest tests/ -v --tb=short. Verify: all tests pass, pure function tests complete in under 2 seconds, integration tests complete in under 5 seconds, no network calls during execution (can verify by running with network disabled or checking for API call attempts). Fix any failures found. Report final test count and timing.")
+  (acceptance "1. Full test suite passes (0 failures). 2. Pure function tests < 2s. 3. Integration tests < 5s. 4. No API calls during test execution. 5. Report includes: total test count, pass/fail breakdown, timing per test file.")
+  (phase "D")
+  (requires-human-review "true")
+  (spec-ref "NFR-001, NFR-002, NFR-003"))
+
+(normally r-ready-full-verification
+  (and task-full-verification
+       completed-test-decay
+       completed-test-chunking
+       completed-test-similarity
+       completed-test-classification
+       completed-test-diversity
+       completed-test-session
+       completed-test-flat-retrieval
+       completed-test-mode-retrieval
+       completed-test-gold-standard)
+  ready-full-verification)
+
+(normally r-assign-full-verification
+  (and ready-full-verification agent-mat-available)
+  assign-to-full-verification-mat)
+
+(claims agent:claude
+  :at "2026-03-03T22:23:45Z"
+  (given claim-v1-test-scaffold-by-claude)
+  (normally r-cl-state-v1-test-scaffold-by-claude claim-v1-test-scaffold-by-claude state-claimed-v1-test-scaffold-by-claude)
+  (normally r-cl-chain-v1-test-scaffold-by-claude state-claimed-v1-test-scaffold-by-claude claimed-test-scaffold)
+)
+
+(claims agent:claude
+  :at "2026-03-03T22:23:46Z"
+  (given claim-v1-test-corpus-by-claude)
+  (normally r-cl-state-v1-test-corpus-by-claude claim-v1-test-corpus-by-claude state-claimed-v1-test-corpus-by-claude)
+  (normally r-cl-chain-v1-test-corpus-by-claude state-claimed-v1-test-corpus-by-claude claimed-test-corpus)
+)
+
+(claims agent:claude
+  :at "2026-03-03T22:24:03Z"
+  (given claim-v2-test-scaffold-by-claude)
+  (normally r-cl-state-v2-test-scaffold-by-claude claim-v2-test-scaffold-by-claude state-claimed-v2-test-scaffold-by-claude)
+  (normally r-cl-chain-v2-test-scaffold-by-claude state-claimed-v2-test-scaffold-by-claude claimed-test-scaffold)
+)
+
+(claims agent:claude
+  :at "2026-03-03T22:24:04Z"
+  (given claim-v2-test-corpus-by-claude)
+  (normally r-cl-state-v2-test-corpus-by-claude claim-v2-test-corpus-by-claude state-claimed-v2-test-corpus-by-claude)
+  (normally r-cl-chain-v2-test-corpus-by-claude state-claimed-v2-test-corpus-by-claude claimed-test-corpus)
+)
+
+(claims agent:claude
+  :at "2026-03-03T22:28:03Z"
+  (given completed-test-scaffold)
+  (given spawn-result-v2-test-scaffold-by-claude)
+)
+
+(claims agent:claude
+  :at "2026-03-03T22:28:20Z"
+  (given completed-test-corpus)
+  (given spawn-result-v2-test-corpus-by-claude)
+)
+
+(claims agent:claude
+  :at "2026-03-03T22:40:04Z"
+  (given claim-v1-test-decay-by-claude)
+  (normally r-cl-state-v1-test-decay-by-claude claim-v1-test-decay-by-claude state-claimed-v1-test-decay-by-claude)
+  (normally r-cl-chain-v1-test-decay-by-claude state-claimed-v1-test-decay-by-claude claimed-test-decay)
+)
+
+(claims agent:claude
+  :at "2026-03-03T22:40:05Z"
+  (given claim-v1-test-chunking-by-claude)
+  (normally r-cl-state-v1-test-chunking-by-claude claim-v1-test-chunking-by-claude state-claimed-v1-test-chunking-by-claude)
+  (normally r-cl-chain-v1-test-chunking-by-claude state-claimed-v1-test-chunking-by-claude claimed-test-chunking)
+)
+
+(claims agent:claude
+  :at "2026-03-03T22:40:06Z"
+  (given claim-v1-test-similarity-by-claude)
+  (normally r-cl-state-v1-test-similarity-by-claude claim-v1-test-similarity-by-claude state-claimed-v1-test-similarity-by-claude)
+  (normally r-cl-chain-v1-test-similarity-by-claude state-claimed-v1-test-similarity-by-claude claimed-test-similarity)
+)
+
+(claims agent:claude
+  :at "2026-03-03T22:40:07Z"
+  (given claim-v1-test-classification-by-claude)
+  (normally r-cl-state-v1-test-classification-by-claude claim-v1-test-classification-by-claude state-claimed-v1-test-classification-by-claude)
+  (normally r-cl-chain-v1-test-classification-by-claude state-claimed-v1-test-classification-by-claude claimed-test-classification)
+)
+
+(claims agent:claude
+  :at "2026-03-03T22:40:08Z"
+  (given claim-v1-test-diversity-by-claude)
+  (normally r-cl-state-v1-test-diversity-by-claude claim-v1-test-diversity-by-claude state-claimed-v1-test-diversity-by-claude)
+  (normally r-cl-chain-v1-test-diversity-by-claude state-claimed-v1-test-diversity-by-claude claimed-test-diversity)
+)
+
+(claims agent:claude
+  :at "2026-03-03T22:40:08Z"
+  (given claim-v1-test-session-by-claude)
+  (normally r-cl-state-v1-test-session-by-claude claim-v1-test-session-by-claude state-claimed-v1-test-session-by-claude)
+  (normally r-cl-chain-v1-test-session-by-claude state-claimed-v1-test-session-by-claude claimed-test-session)
+)
+
+(claims agent:claude
+  :at "2026-03-03T22:40:09Z"
+  (given claim-v1-generate-fixtures-by-claude)
+  (normally r-cl-state-v1-generate-fixtures-by-claude claim-v1-generate-fixtures-by-claude state-claimed-v1-generate-fixtures-by-claude)
+  (normally r-cl-chain-v1-generate-fixtures-by-claude state-claimed-v1-generate-fixtures-by-claude claimed-generate-fixtures)
+)
+
+(claims agent:claude
+  :at "2026-03-03T22:41:34Z"
+  (given completed-test-session)
+  (given spawn-result-v1-test-session-by-claude)
+)
+
+(claims agent:claude
+  :at "2026-03-03T22:41:46Z"
+  (given completed-test-diversity)
+  (given spawn-result-v1-test-diversity-by-claude)
+)
+
+(claims agent:claude
+  :at "2026-03-03T22:42:04Z"
+  (given completed-test-decay)
+  (given spawn-result-v1-test-decay-by-claude)
+)
+
+(claims agent:claude
+  :at "2026-03-03T22:42:15Z"
+  (given completed-test-similarity)
+  (given spawn-result-v1-test-similarity-by-claude)
+)
+
+(claims agent:claude
+  :at "2026-03-03T22:44:16Z"
+  (given completed-generate-fixtures)
+  (given spawn-result-v1-generate-fixtures-by-claude)
+)
+
+(claims agent:claude
+  :at "2026-03-03T22:44:36Z"
+  (given completed-test-chunking)
+  (given spawn-result-v1-test-chunking-by-claude)
+)
+
+(claims agent:claude
+  :at "2026-03-03T22:53:35Z"
+  (given completed-test-classification)
+  (given spawn-result-v1-test-classification-by-claude)
+)
+
+(claims agent:claude
+  :at "2026-03-03T22:54:15Z"
+  (given claim-v1-test-flat-retrieval-by-claude)
+  (normally r-cl-state-v1-test-flat-retrieval-by-claude claim-v1-test-flat-retrieval-by-claude state-claimed-v1-test-flat-retrieval-by-claude)
+  (normally r-cl-chain-v1-test-flat-retrieval-by-claude state-claimed-v1-test-flat-retrieval-by-claude claimed-test-flat-retrieval)
+)
+
+(claims agent:claude
+  :at "2026-03-03T22:54:16Z"
+  (given claim-v1-test-mode-retrieval-by-claude)
+  (normally r-cl-state-v1-test-mode-retrieval-by-claude claim-v1-test-mode-retrieval-by-claude state-claimed-v1-test-mode-retrieval-by-claude)
+  (normally r-cl-chain-v1-test-mode-retrieval-by-claude state-claimed-v1-test-mode-retrieval-by-claude claimed-test-mode-retrieval)
+)
+
+(claims agent:claude
+  :at "2026-03-03T22:54:16Z"
+  (given claim-v1-test-gold-standard-by-claude)
+  (normally r-cl-state-v1-test-gold-standard-by-claude claim-v1-test-gold-standard-by-claude state-claimed-v1-test-gold-standard-by-claude)
+  (normally r-cl-chain-v1-test-gold-standard-by-claude state-claimed-v1-test-gold-standard-by-claude claimed-test-gold-standard)
+)
+
+(claims agent:claude
+  :at "2026-03-03T22:57:14Z"
+  (given completed-test-flat-retrieval)
+  (given spawn-result-v1-test-flat-retrieval-by-claude)
+)
+
+(claims agent:claude
+  :at "2026-03-03T22:59:44Z"
+  (given completed-test-mode-retrieval)
+  (given spawn-result-v1-test-mode-retrieval-by-claude)
+)
+
+(claims agent:claude
+  :at "2026-03-03T23:01:34Z"
+  (given completed-test-gold-standard)
+  (given spawn-result-v1-test-gold-standard-by-claude)
+)
+
+(claims agent:claude
+  :at "2026-03-03T23:15:42Z"
+  (given completed-full-verification))
