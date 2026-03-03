@@ -1,15 +1,27 @@
 {
-  "task_id": "test-corpus",
+  "task_id": "generate-fixtures",
   "token_budget": 8000,
-  "tokens_used": 181,
+  "tokens_used": 285,
   "elements_selected": [
     {
       "source": "plan-meta/description",
-      "content": "Create the synthetic test corpus in tests/fixtures/corpus/. Nine files across three projects plus root, with thematically distinct content so semantic similarity is meaningful. project-a theme: coherence and entrainment (CLAUDE.md, server.py, docs/overview.md). project-b theme: teaching and pedagogy (two TRACE files with different dates, research/findings.md). project-c theme: cooperative economics (README.md, analysis.py). Root: root-file.md about general ecosystem overview. Each file should be 200-600 words of realistic content — not lorem ipsum. The content needs to be semantically distinct enough that a query about 'entrainment' surfaces project-a files, a query about 'pedagogy' surfaces project-b files, etc.",
-      "token_cost": 181,
+      "content": "Create tests/generate_fixtures.py script that builds the fixture database. Script must: 1) Read all files from tests/fixtures/corpus/ using Sense's own chunk_file() and classify_source_type(). 2) Embed all chunks via OpenAI API. 3) Write to tests/fixtures/sense_test.db with the same schema as the production DB. 4) Define gold-standard queries (minimum 8) covering 4+ source_types and 3+ projects. 5) Embed query texts and store in a query_fixtures table (id, query_text, embedding, expected_files JSON, expected_source_type, rationale). 6) Print summary of chunks indexed and queries stored. Script should use the test_config.toml for classification rules. Include a __main__ guard so it runs standalone.",
+      "token_cost": 176,
       "priority": "PlanMeta"
+    },
+    {
+      "source": "memory/episodic/task-test-scaffold-changes",
+      "content": "Modified 9 files (+294, -1): pyproject.toml, tests/__init__.py, tests/conftest.py, tests/fixtures/corpus/CLAUDE.md, tests/fixtures/corpus/README.md and 4 more",
+      "token_cost": 39,
+      "priority": "AgentMemory"
+    },
+    {
+      "source": "memory/episodic/task-test-corpus-changes",
+      "content": "Modified 9 files (+750, -0): tests/fixtures/corpus/project-a/CLAUDE.md, tests/fixtures/corpus/project-a/docs/overview.md, tests/fixtures/corpus/project-a/server.py, tests/fixtures/corpus/project-b/TRACE_2026-01-15.md, tests/fixtures/corpus/project-b/TRACE_2026-02-01.md and 4 more",
+      "token_cost": 70,
+      "priority": "AgentMemory"
     }
   ],
   "elements_excluded": [],
-  "constructed_at": "2026-03-03T22:24:04Z"
+  "constructed_at": "2026-03-03T22:40:09Z"
 }
