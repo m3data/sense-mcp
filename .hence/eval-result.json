@@ -1,0 +1,32 @@
+{
+  "recommended_status": "completed",
+  "confidence": 1.0,
+  "exit_code": 0,
+  "diff_summary": {
+    "files_changed": 9,
+    "insertions": 750,
+    "deletions": 0,
+    "file_list": [
+      "tests/fixtures/corpus/project-a/CLAUDE.md",
+      "tests/fixtures/corpus/project-a/docs/overview.md",
+      "tests/fixtures/corpus/project-a/server.py",
+      "tests/fixtures/corpus/project-b/TRACE_2026-01-15.md",
+      "tests/fixtures/corpus/project-b/TRACE_2026-02-01.md",
+      "tests/fixtures/corpus/project-b/research/findings.md",
+      "tests/fixtures/corpus/project-c/README.md",
+      "tests/fixtures/corpus/project-c/analysis.py",
+      "tests/fixtures/corpus/root-file.md"
+    ],
+    "dirty_files": 1
+  },
+  "learnings": [
+    {
+      "key": "task-test-corpus-changes",
+      "content": "Modified 9 files (+750, -0): tests/fixtures/corpus/project-a/CLAUDE.md, tests/fixtures/corpus/project-a/docs/overview.md, tests/fixtures/corpus/project-a/server.py, tests/fixtures/corpus/project-b/TRACE_2026-01-15.md, tests/fixtures/corpus/project-b/TRACE_2026-02-01.md and 4 more",
+      "memory_type": "episodic",
+      "confidence": 0.8
+    }
+  ],
+  "branch_name": "hence/test-corpus-v2",
+  "evaluated_at": "2026-03-03T22:28:20Z"
+}
