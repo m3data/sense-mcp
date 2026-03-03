@@ -24,7 +24,7 @@ from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
 from openai import OpenAI
 
-from config import get_config
+from .config import get_config
 
 # ---------------------------------------------------------------------------
 # Configuration

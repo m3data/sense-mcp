@@ -2,13 +2,14 @@
 
 Resolution order:
   1. SENSE_CONFIG env var (absolute path to TOML file)
-  2. sense.toml next to this file (server directory)
-  3. Built-in defaults (minimal, functional for any markdown project)
+  2. sense.toml in repo root (parent of sense_mcp/ package dir)
+  3. sense.toml in current working directory
+  4. Built-in defaults (minimal, functional for any markdown project)
 
 Root path resolution:
-  1. [corpus] root in config (absolute or relative to config file dir)
-  2. SENSE_ROOT env var
-  3. Parent of the sense-mcp directory
+  1. SENSE_ROOT env var
+  2. [corpus] root in config (absolute or relative to config file dir)
+  3. Parent of the repo root (sense-mcp/../)
 """
 
 import os
@@ -150,7 +151,11 @@ class SenseConfig:
 
     def __init__(self, config_path: Path | None = None):
         self._raw = dict(_DEFAULTS)
-        self._config_dir = Path(__file__).resolve().parent
+        # Default config_dir: repo root (parent of sense_mcp/ package).
+        # For editable installs this is the sense-mcp/ checkout.
+        # For uvx/pip installs this lands in site-packages (harmless —
+        # paths fall through to SENSE_ROOT or CWD).
+        self._config_dir = Path(__file__).resolve().parent.parent
 
         if config_path is None:
             config_path = self._find_config()
@@ -170,9 +175,17 @@ class SenseConfig:
         if env_path:
             return Path(env_path).resolve()
 
-        local = Path(__file__).resolve().parent / "sense.toml"
-        if local.exists():
-            return local
+        # Repo root (parent of sense_mcp/ package dir) — works for
+        # editable installs and local dev
+        repo_root = Path(__file__).resolve().parent.parent / "sense.toml"
+        if repo_root.exists():
+            return repo_root
+
+        # CWD fallback — works for uvx installs where the user has a
+        # sense.toml in their project root
+        cwd = Path.cwd() / "sense.toml"
+        if cwd.exists():
+            return cwd
 
         return None
 

@@ -14,7 +14,8 @@ dependencies = [
 ]
 
 [project.scripts]
-sense-mcp = "server:mcp.run"
+sense-mcp = "sense_mcp.server:mcp.run"
+sense-mcp-hook = "sense_mcp.hook:main"
 
 [build-system]
 requires = ["hatchling"]

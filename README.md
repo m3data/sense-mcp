@@ -32,55 +32,44 @@ When paired with [Vibe Harness](https://github.com/m3data/vibe-harness-mcp), wha
 
 ## Quick start
 
-### Install
+Requires Python 3.11+ and [uv](https://docs.astral.sh/uv/).
+
+### Install and register
+
+**Option A — `uvx` (zero install, runs directly):**
 
 ```bash
-cd sense-mcp
-python -m venv .venv
-source .venv/bin/activate
-pip install -e .
+claude mcp add sense \
+  -e OPENAI_API_KEY=sk-... \
+  -e SENSE_ROOT=/path/to/your/project \
+  -- uvx --from git+https://github.com/m3data/sense-mcp sense-mcp
 ```
 
-Requires Python 3.11+.
+**Option B — `uv tool install` (recommended for hook support):**
 
-### Configure
+```bash
+uv tool install sense-mcp --from git+https://github.com/m3data/sense-mcp
+claude mcp add sense \
+  -e OPENAI_API_KEY=sk-... \
+  -e SENSE_ROOT=/path/to/your/project \
+  -- sense-mcp
+```
 
-Copy the example config and adjust for your ecosystem:
+Both options register Sense as an MCP server with Claude Code. Option B also installs the `sense-mcp-hook` command for ambient context (below).
+
+### Configure (optional)
+
+For default settings, `OPENAI_API_KEY` and `SENSE_ROOT` env vars are enough. For deeper customisation, create a `sense.toml` in your project root or point to one with `SENSE_CONFIG`:
 
 ```bash
 cp sense.example.toml sense.toml
 ```
 
-At minimum, set:
-
-- `[corpus] root` — the directory to index (default: parent of sense-mcp/)
-- `[corpus] env_file` — path to `.env` with your `OPENAI_API_KEY`
-- `[corpus] excluded_dirs` — directories to skip
-- `[[classification.rules]]` — rules mapping your file paths to source types
-
-See `sense.example.toml` for all options with inline documentation.
-
-### Wire up to Claude Code
-
-Add to your MCP settings (`.claude.json` or via `claude mcp add`):
-
-```json
-{
-  "mcpServers": {
-    "sense": {
-      "command": "/path/to/sense-mcp/.venv/bin/python",
-      "args": ["/path/to/sense-mcp/server.py"],
-      "env": {
-        "OPENAI_API_KEY": "sk-..."
-      }
-    }
-  }
-}
-```
+See `sense.example.toml` for all options: corpus paths, excluded directories, classification rules, decay half-lives, mode profiles.
 
 ### Enable ambient context (recommended)
 
-The companion hook at `.claude/hooks/sense-auto-query.py` fires on every user prompt and injects the top 3 relevant results as `<sense-context>` tags. This is what makes Sense ambient rather than on-demand.
+The companion hook fires on every user prompt and injects the top 3 relevant results as `<sense-context>` tags. This is what makes Sense ambient rather than on-demand.
 
 Add to `.claude/settings.json`:
 
@@ -90,14 +79,26 @@ Add to `.claude/settings.json`:
     "UserPromptSubmit": [
       {
         "type": "command",
-        "command": "/path/to/sense-mcp/.venv/bin/python /path/to/.claude/hooks/sense-auto-query.py"
+        "command": "sense-mcp-hook"
       }
     ]
   }
 }
 ```
 
+Requires `uv tool install` (Option B) — the hook runs on every prompt and needs sub-second startup, so `uvx` cold-start is too slow.
+
 The hook gates on prompt length, cooldown, and continuation signals. It opens the SQLite DB in read-only mode and coexists safely with the running MCP server.
+
+### Development install
+
+For contributors or local hacking:
+
+```bash
+cd sense-mcp
+uv venv && source .venv/bin/activate
+uv pip install -e .
+```
 
 ## Tools
 
