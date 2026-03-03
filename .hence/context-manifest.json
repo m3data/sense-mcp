@@ -1,0 +1,15 @@
+{
+  "task_id": "test-scaffold",
+  "token_budget": 8000,
+  "tokens_used": 124,
+  "elements_selected": [
+    {
+      "source": "plan-meta/description",
+      "content": "Create the test infrastructure skeleton. Files: tests/conftest.py (shared fixtures, config patching, session state reset, DB fixture loading), tests/fixtures/test_config.toml (minimal Sense config for tests — points at fixture corpus, uses fixture DB path, has known classification rules and decay settings). Add pytest and pytest dependencies to pyproject.toml under [project.optional-dependencies] test group. Create tests/__init__.py. Verify pytest discovers and runs with zero tests collected.",
+      "token_cost": 124,
+      "priority": "PlanMeta"
+    }
+  ],
+  "elements_excluded": [],
+  "constructed_at": "2026-03-03T22:24:03Z"
+}

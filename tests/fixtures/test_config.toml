@@ -1,0 +1,95 @@
+# tests/fixtures/test_config.toml — Minimal Sense config for the test suite.
+#
+# Key invariants:
+#   - corpus root points at tests/fixtures/corpus/ (overridable via SENSE_ROOT)
+#   - database path is relative here; conftest patches it to a tmp_path per test
+#   - classification rules are intentionally simple and known for assertion
+#   - decay / session values are small so tests run fast
+
+[server]
+name = "SenseTest"
+
+[embedding]
+model = "text-embedding-3-small"
+dimensions = 1536
+max_input_tokens = 8000
+batch_size = 16
+
+[corpus]
+root = "corpus"
+database = "test.db"
+api_key_env = "OPENAI_API_KEY"
+env_file = ".env"
+extensions = [".md", ".txt", ".py"]
+excluded_dirs = ["__pycache__", ".git", ".venv", "node_modules"]
+excluded_paths = []
+
+[decay]
+floor = 0.1
+
+[decay.half_lives]
+trace = 30
+documentation = 90
+code = 90
+
+[session]
+surfaced_cap = 100
+max_queries = 20
+
+[mode]
+history_path = "/tmp/sense-test-mode-history.jsonl"
+
+[mode.diversity_slots]
+wide   = [4, 3, 3]
+narrow = [7, 2, 1]
+suppress = [3, 0, 0]
+
+[mode.profiles.explore]
+source_type_multipliers = { code = 0.7, research = 1.3, documentation = 1.0, trace = 1.0, teaching = 1.0, project_claude = 1.0, reference = 1.0 }
+cross_project_boost = 1.4
+already_surfaced_penalty = 0.75
+diversity_profile = "wide"
+
+[mode.profiles.build]
+source_type_multipliers = { code = 1.5, research = 0.7, documentation = 1.3, trace = 1.0, teaching = 0.8, project_claude = 1.2, reference = 1.0 }
+cross_project_boost = 0.8
+already_surfaced_penalty = 0.80
+diversity_profile = "narrow"
+
+[mode.profiles.think-with]
+source_type_multipliers = { code = 0.6, research = 1.5, documentation = 1.0, trace = 1.0, teaching = 1.1, project_claude = 1.0, reference = 1.2 }
+cross_project_boost = 1.3
+already_surfaced_penalty = 0.75
+diversity_profile = "wide"
+
+[mode.profiles.ship]
+source_type_multipliers = { code = 1.4, research = 0.5, documentation = 1.2, trace = 1.0, teaching = 0.6, project_claude = 1.1, reference = 1.0 }
+cross_project_boost = 0.7
+already_surfaced_penalty = 0.85
+diversity_profile = "narrow"
+
+[mode.profiles.cool-off]
+source_type_multipliers = { code = 0.2, research = 0.5, documentation = 0.3, trace = 0.3, teaching = 0.4, project_claude = 0.3, reference = 0.5 }
+cross_project_boost = 1.0
+already_surfaced_penalty = 0.65
+diversity_profile = "suppress"
+
+[classification]
+default = "documentation"
+
+# Trace files — known pattern used in classification tests
+[[classification.rules]]
+type = "trace"
+filename = "^TRACE_"
+case_insensitive = true
+
+# CLAUDE.md project files
+[[classification.rules]]
+type = "project_claude"
+filename = "CLAUDE\\.md$"
+case_insensitive = true
+
+# Python source files
+[[classification.rules]]
+type = "code"
+extension = [".py"]
