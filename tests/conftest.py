@@ -4,8 +4,7 @@ Responsibilities:
   - Patch SENSE_CONFIG / SENSE_ROOT so every test loads the fixture config
     instead of any real sense.toml found on disk
   - Override cfg.db_path to a per-test tmp_path so DB state never leaks
-  - Reset module-level session state (_session_surfaced, _session_queries)
-    before and after each test
+  - Reset module-level session state (_session) before and after each test
   - Reset lazy-init singletons (_db_conn, _openai_client) around each test
   - Provide an opt-in `db` fixture that wires up a real in-test SQLite
     connection with the schema initialised
@@ -19,6 +18,7 @@ import pytest
 
 import sense_mcp.config as config_module
 import sense_mcp.server as server_module
+from sense_mcp.session import SessionState
 
 # ---------------------------------------------------------------------------
 # Fixture paths
@@ -60,8 +60,8 @@ def test_env(monkeypatch, tmp_path):
     monkeypatch.setattr(server_module, "ECOSYSTEM_ROOT", CORPUS_DIR)
 
     # --- Session state reset ---
-    server_module._session_surfaced.clear()
-    server_module._session_queries.clear()
+    monkeypatch.setattr(server_module, "_session", SessionState())
+    monkeypatch.setattr(server_module, "_query_embedding_cache", {})
 
     # --- Singleton reset (close any open DB from a prior test) ---
     if server_module._db_conn is not None:
@@ -76,8 +76,8 @@ def test_env(monkeypatch, tmp_path):
         server_module._db_conn.close()
     server_module._db_conn = None
     server_module._openai_client = None
-    server_module._session_surfaced.clear()
-    server_module._session_queries.clear()
+    server_module._session = SessionState()
+    server_module._query_embedding_cache.clear()
     config_module._config = None
 
 
