@@ -28,7 +28,7 @@ It runs as an [MCP](https://modelcontextprotocol.io/) server for [Claude Code](h
 
 When paired with [Vibe Harness](https://github.com/m3data/vibe-harness-mcp), what surfaces also changes based on what you're doing. Exploring widens the aperture — cross-project connections, unexpected adjacencies. Building narrows it to code and documentation in the current project. The same corpus looks different depending on your working mode.
 
-**Source-classified, diversity-structured.** Files are classified into types (traces, code, research, documentation, reference, teaching), each with distinct decay rates and mode weightings. Results are structured into confirmation slots (highest relevance), divergence slots (what challenges the current frame), and serendipity slots (from projects you weren't looking at). The candidate pool uses stratified sampling to guarantee representation across source types, so minority types can surface when mode multipliers promote them. The goal is productive connections, not just the nearest match.
+**Source-classified, diversity-structured.** Files are classified into types (traces, code, research, documentation, reference, research etc), each with distinct decay rates that can be set and mode weightings. Results are structured into confirmation slots (highest relevance), divergence slots (what challenges the current frame), and serendipity slots (from projects you weren't looking at). The candidate pool uses stratified sampling to guarantee representation across source types, so minority types can surface when mode multipliers promote them. The goal is productive connections, not just the nearest match.
 
 ## Quick start
 
@@ -178,7 +178,7 @@ Mode profiles are fully configurable in `sense.toml` under `[mode.profiles.*]`.
 
 Sense is also a research artifact. It investigates whether relevance realisation — the pre-reflective process by which organisms determine what matters — can be partially externalised into infrastructure.
 
-The current implementation composes three signals: semantic similarity, temporal decay, and mode awareness. The architecture is designed to accommodate additional signals as they become available: decision anchoring (epistemic posture), graph adjacency (structural connections via [zetl](https://github.com/anuna-research/zetl)), and biosignal responsiveness (physiological state influencing what surfaces).
+The current implementation composes three signals: semantic similarity, temporal decay, and mode awareness. The architecture is designed to accommodate additional signals as they become available: decision anchoring (epistemic posture), graph adjacency (structural connections via [zetl](https://codeberg.org/anuna/zetl)), and biosignal responsiveness (physiological state influencing what surfaces) through [vibe-harness](https://github.com/m3data/vibe-harness-mcp).
 
 The system scaffolds the human's relevance realisation — it does not replace it. But through its responsiveness to working context, it participates in the coupling dynamic that produces relevance.
 
