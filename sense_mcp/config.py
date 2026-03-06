@@ -58,6 +58,7 @@ _DEFAULTS = {
     },
     "mode": {
         "history_path": "~/.vibe-harness/mode-history.jsonl",
+        "min_type_slots": 2,
         "diversity_slots": {
             "wide": [4, 3, 3],
             "narrow": [7, 2, 1],
@@ -298,6 +299,10 @@ class SenseConfig:
     @property
     def mode_profiles(self) -> dict:
         return self._raw["mode"]["profiles"]
+
+    @property
+    def min_type_slots(self) -> int:
+        return self._raw["mode"]["min_type_slots"]
 
     @property
     def diversity_slots(self) -> dict[str, tuple[int, int, int]]:
