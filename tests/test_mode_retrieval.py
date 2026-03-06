@@ -176,10 +176,12 @@ def test_metadata_has_required_fields(fixture_db):
 # ---------------------------------------------------------------------------
 
 
-def test_session_queries_accumulate_across_calls(fixture_db):
+def test_session_queries_accumulate_across_calls(fixture_db, monkeypatch):
     """session_queries count in metadata grows with each contextual search call."""
-    # Reset to known state (autouse fixture already does this, but be explicit)
-    server_module._session.queries.clear()
+    # Stub embed_query so circling detection doesn't hit the OpenAI API.
+    # A fixed zero vector ensures no past query ever exceeds the similarity
+    # threshold, keeping the test focused on query-count accumulation.
+    monkeypatch.setattr(server_module, "embed_query", lambda _: np.zeros(1536, dtype=np.float32))
 
     emb1 = _load_embedding(fixture_db, 1)
     emb2 = _load_embedding(fixture_db, 2)

@@ -41,11 +41,13 @@ class SessionState:
     # -----------------------------------------------------------------------
 
     @classmethod
-    def load(cls, path: str = STATE_PATH) -> "SessionState":
+    def load(cls, path: str | None = None) -> "SessionState":
         """Load state from JSON file with shared read lock.
 
         Returns an empty SessionState on any read/parse error.
         """
+        if path is None:
+            path = STATE_PATH
         try:
             with open(path, "r") as f:
                 fcntl.flock(f, fcntl.LOCK_SH)
@@ -61,8 +63,10 @@ class SessionState:
         except (FileNotFoundError, json.JSONDecodeError, OSError):
             return cls()
 
-    def save(self, path: str = STATE_PATH) -> None:
+    def save(self, path: str | None = None) -> None:
         """Persist state to JSON file with exclusive write lock. Silent on error."""
+        if path is None:
+            path = STATE_PATH
         try:
             with open(path, "w") as f:
                 fcntl.flock(f, fcntl.LOCK_EX)
