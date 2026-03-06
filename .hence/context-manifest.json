@@ -1,12 +1,12 @@
 {
-  "task_id": "a3-hook-adopt-session-module",
+  "task_id": "a2-server-adopt-session-module",
   "token_budget": 8000,
-  "tokens_used": 227,
+  "tokens_used": 234,
   "elements_selected": [
     {
       "source": "plan-meta/description",
-      "content": "Refactor hook.py to use the shared session module. (1) After passing gates and importing sense_mcp, import session module. (2) Load shared state via session.load(). (3) Replace hook's own surfaced_files tracking: use shared state surfaced counts for dedup weighting instead of the hook's binary seen/unseen list. (4) After filtering results, call session.record_surfaced() and session.record_query(), then session.save(). (5) Move cooldown (last_query_time) into shared state — session.last_query_time replaces the hook's own state file. (6) Remove hook's get_state_path(), load_state(), save_state() functions and the /tmp/sense-auto-query-*.json files. (7) The hook still opens SQLite read-only for chunk data — only session state uses the shared JSON file.",
-      "token_cost": 190,
+      "content": "Refactor server.py to use the new session module instead of in-process globals. (1) Import session module. (2) In search_chunks_contextual: load shared state at entry, use session.get_surfaced_penalty() for resurfacing, pass embed_query as the embed_fn for circling detection, call session.record_surfaced() and session.record_query() after assembly, save state before return. (3) Remove the old global _session_surfaced and _session_queries dicts. (4) Remove the old record_surfaced(), record_query(), get_surfaced_penalty(), detect_circling_topics() functions from server.py. (5) Keep the comment block (lines 372-380) explaining the architecture — update it to describe the shared state solution. (6) search_chunks (flat path) remains unchanged — no session tracking on flat searches.",
+      "token_cost": 197,
       "priority": "PlanMeta"
     },
     {
@@ -17,5 +17,5 @@
     }
   ],
   "elements_excluded": [],
-  "constructed_at": "2026-03-06T10:44:32Z"
+  "constructed_at": "2026-03-06T10:44:31Z"
 }
