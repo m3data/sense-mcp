@@ -146,7 +146,6 @@ def main():
 
         # Filter and deduplicate
         seen_files = set()
-        surfaced_before = set(state.surfaced.keys())
         filtered = []
 
         for r in results:
@@ -160,9 +159,10 @@ def main():
                 continue
             seen_files.add(fp)
 
-            # De-weight previously surfaced files
-            if fp in surfaced_before:
-                r["score"] *= SURFACED_PENALTY
+            # De-weight previously surfaced files using count-based penalty
+            penalty = state.get_surfaced_penalty(fp, SURFACED_PENALTY)
+            if penalty < 1.0:
+                r["score"] *= penalty
                 # Drop if penalty pushes below a usable score
                 if r["score"] < SIMILARITY_THRESHOLD * 0.5:
                     continue
