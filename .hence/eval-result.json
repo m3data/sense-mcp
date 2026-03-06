@@ -3,30 +3,25 @@
   "confidence": 1.0,
   "exit_code": 0,
   "diff_summary": {
-    "files_changed": 9,
-    "insertions": 750,
-    "deletions": 0,
+    "files_changed": 4,
+    "insertions": 32,
+    "deletions": 63,
     "file_list": [
-      "tests/fixtures/corpus/project-a/CLAUDE.md",
-      "tests/fixtures/corpus/project-a/docs/overview.md",
-      "tests/fixtures/corpus/project-a/server.py",
-      "tests/fixtures/corpus/project-b/TRACE_2026-01-15.md",
-      "tests/fixtures/corpus/project-b/TRACE_2026-02-01.md",
-      "tests/fixtures/corpus/project-b/research/findings.md",
-      "tests/fixtures/corpus/project-c/README.md",
-      "tests/fixtures/corpus/project-c/analysis.py",
-      "tests/fixtures/corpus/root-file.md"
+      "sense_mcp/server.py",
+      "sense_mcp/session.py",
+      "tests/conftest.py",
+      "tests/test_mode_retrieval.py"
     ],
     "dirty_files": 1
   },
   "learnings": [
     {
-      "key": "task-test-corpus-changes",
-      "content": "Modified 9 files (+750, -0): tests/fixtures/corpus/project-a/CLAUDE.md, tests/fixtures/corpus/project-a/docs/overview.md, tests/fixtures/corpus/project-a/server.py, tests/fixtures/corpus/project-b/TRACE_2026-01-15.md, tests/fixtures/corpus/project-b/TRACE_2026-02-01.md and 4 more",
+      "key": "task-a2-server-adopt-session-module-changes",
+      "content": "Modified 4 files (+32, -63): sense_mcp/server.py, sense_mcp/session.py, tests/conftest.py, tests/test_mode_retrieval.py",
       "memory_type": "episodic",
       "confidence": 0.8
     }
   ],
-  "branch_name": "hence/test-corpus-v2",
-  "evaluated_at": "2026-03-03T22:28:20Z"
+  "branch_name": "hence/a2-server-adopt-session-module-v1",
+  "evaluated_at": "2026-03-06T10:49:22Z"
 }

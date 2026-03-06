@@ -21,6 +21,8 @@ import sys
 import time
 from pathlib import Path
 
+from sense_mcp.session import SessionState
+
 # ---------------------------------------------------------------------------
 # Gate conditions
 # ---------------------------------------------------------------------------
@@ -51,7 +53,7 @@ MAX_EMBED_WORDS = 100  # truncate long prompts for embedding
 # Gate logic
 # ---------------------------------------------------------------------------
 
-def should_search(prompt_text: str, session_state: dict) -> bool:
+def should_search(prompt_text: str, session_state: SessionState) -> bool:
     """Apply gate conditions. Returns True if search should proceed."""
     text = prompt_text.strip()
 
@@ -68,37 +70,10 @@ def should_search(prompt_text: str, session_state: dict) -> bool:
         return False
 
     # Cooldown
-    last_time = session_state.get("last_query_time", 0)
-    if time.time() - last_time < COOLDOWN_SECONDS:
+    if time.time() - session_state.last_query_time < COOLDOWN_SECONDS:
         return False
 
     return True
-
-
-# ---------------------------------------------------------------------------
-# Session state (persisted in /tmp/ per session)
-# ---------------------------------------------------------------------------
-
-def get_state_path(session_id: str) -> str:
-    return f"/tmp/sense-auto-query-{session_id}.json"
-
-
-def load_state(session_id: str) -> dict:
-    path = get_state_path(session_id)
-    try:
-        with open(path, "r") as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError, OSError):
-        return {"last_query_time": 0, "surfaced_files": []}
-
-
-def save_state(session_id: str, state: dict):
-    path = get_state_path(session_id)
-    try:
-        with open(path, "w") as f:
-            json.dump(state, f)
-    except OSError:
-        pass  # non-critical
 
 
 # ---------------------------------------------------------------------------
@@ -112,8 +87,6 @@ def main():
     except (json.JSONDecodeError, EOFError):
         return
 
-    session_id = input_data.get("session_id", "unknown")
-
     # Extract prompt text — handle both dict and string formats
     prompt = input_data.get("prompt", {})
     if isinstance(prompt, dict):
@@ -126,8 +99,8 @@ def main():
     if not prompt_text:
         return
 
-    # Load session state and check gates
-    state = load_state(session_id)
+    # Load shared session state and check gates
+    state = SessionState.load()
     if not should_search(prompt_text, state):
         return
 
@@ -167,13 +140,12 @@ def main():
         )
 
         if not results:
-            state["last_query_time"] = time.time()
-            save_state(session_id, state)
+            state.last_query_time = time.time()
+            state.save()
             return
 
         # Filter and deduplicate
         seen_files = set()
-        surfaced_before = set(state.get("surfaced_files", []))
         filtered = []
 
         for r in results:
@@ -187,9 +159,10 @@ def main():
                 continue
             seen_files.add(fp)
 
-            # De-weight previously surfaced files
-            if fp in surfaced_before:
-                r["score"] *= SURFACED_PENALTY
+            # De-weight previously surfaced files using count-based penalty
+            penalty = state.get_surfaced_penalty(fp, SURFACED_PENALTY)
+            if penalty < 1.0:
+                r["score"] *= penalty
                 # Drop if penalty pushes below a usable score
                 if r["score"] < SIMILARITY_THRESHOLD * 0.5:
                     continue
@@ -199,12 +172,15 @@ def main():
                 break
 
         # Update session state (even if no results — records cooldown)
-        newly_surfaced = [r["file_path"] for r in filtered]
-        state["last_query_time"] = time.time()
-        state["surfaced_files"] = list(
-            set(state.get("surfaced_files", [])) | set(newly_surfaced)
-        )[-50:]  # cap list size
-        save_state(session_id, state)
+        cfg = sense_server.cfg
+        state.last_query_time = time.time()
+        state.record_surfaced(filtered, surfaced_cap=cfg.surfaced_cap)
+        state.record_query(
+            search_text,
+            [r["file_path"] for r in filtered],
+            max_queries=cfg.max_queries,
+        )
+        state.save()
 
         if not filtered:
             return

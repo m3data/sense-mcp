@@ -25,6 +25,7 @@ from mcp.server.fastmcp import FastMCP
 from openai import OpenAI
 
 from .config import get_config
+from .session import SessionState
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -369,78 +370,12 @@ def cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
 
 
 # ---------------------------------------------------------------------------
-# Session trajectory tracking (MCP-scoped, in-memory)
+# Session trajectory tracking (shared state)
 #
-# These globals only accumulate state within the long-running MCP server
-# process. The auto-query hook (sense-auto-query.py) imports this module
-# in a fresh process per invocation, so hook-based searches always start
-# with empty state — session tracking is structurally inoperative for
-# ambient (hook-based) queries. The hook maintains its own lightweight
-# file-based dedup in /tmp/sense-auto-query-{session_id}.json.
+# search_chunks_contextual loads SessionState from /tmp/sense-session-state.json
+# at entry and saves it before return. Both the MCP server and the hook
+# (hook.py) share state through this file, protected by fcntl.flock.
 # ---------------------------------------------------------------------------
-
-# {file_path: {"count": int, "last_ts": float}}
-_session_surfaced: dict[str, dict] = {}
-
-# [{"query": str, "embedding": np.ndarray, "ts": float, "surfaced_files": list[str]}]
-_session_queries: list[dict] = []
-
-
-def record_surfaced(results: list[dict]) -> None:
-    """Log which files were surfaced in a result set."""
-    now = time.time()
-    for r in results:
-        fp = r["file_path"]
-        if fp in _session_surfaced:
-            _session_surfaced[fp]["count"] += 1
-            _session_surfaced[fp]["last_ts"] = now
-        else:
-            _session_surfaced[fp] = {"count": 1, "last_ts": now}
-
-    cap = cfg.surfaced_cap
-    if len(_session_surfaced) > cap:
-        by_ts = sorted(_session_surfaced.items(), key=lambda kv: kv[1]["last_ts"])
-        to_remove = len(_session_surfaced) - cap
-        for key, _ in by_ts[:to_remove]:
-            del _session_surfaced[key]
-
-
-def record_query(query: str, embedding: np.ndarray, surfaced_files: list[str]) -> None:
-    """Log a query embedding for circling detection."""
-    _session_queries.append({
-        "query": query,
-        "embedding": embedding,
-        "ts": time.time(),
-        "surfaced_files": surfaced_files,
-    })
-    max_q = cfg.max_queries
-    if len(_session_queries) > max_q:
-        _session_queries.pop(0)
-
-
-def get_surfaced_penalty(file_path: str, base_penalty: float) -> float:
-    """Return a multiplier that decays with each resurfacing.
-
-    penalty^count, floored at 0.05 so nothing vanishes entirely.
-    """
-    entry = _session_surfaced.get(file_path)
-    if not entry:
-        return 1.0
-    return max(base_penalty ** entry["count"], 0.05)
-
-
-def detect_circling_topics(embedding: np.ndarray, threshold: float = 0.75) -> set[str]:
-    """Find files from past queries that are semantically similar to this one.
-
-    Returns file paths that appeared in results of similar prior queries —
-    these are circling topics (salience signal, worth boosting).
-    """
-    circling_files: set[str] = set()
-    for past in _session_queries:
-        sim = cosine_similarity(embedding, past["embedding"])
-        if sim >= threshold:
-            circling_files.update(past["surfaced_files"])
-    return circling_files
 
 
 def search_chunks(
@@ -593,10 +528,11 @@ def search_chunks_contextual(
     Returns (results, metadata) where metadata contains mode info and indicators.
     Falls through to plain search_chunks when no mode is active.
 
-    Note: session tracking (resurfacing penalty, circling detection) only
-    accumulates state within the MCP server process. Hook-based callers
-    that import this module directly get fresh state per invocation.
+    Session state is loaded from shared storage at entry and saved before return,
+    so both the MCP server and hook invocations accumulate a shared trajectory.
     """
+    session = SessionState.load()
+
     mode_profiles = cfg.mode_profiles
     diversity_slots = cfg.diversity_slots
 
@@ -639,7 +575,7 @@ def search_chunks_contextual(
 
     base_penalty = profile["already_surfaced_penalty"]
     for r in candidates:
-        penalty = get_surfaced_penalty(r["file_path"], base_penalty)
+        penalty = session.get_surfaced_penalty(r["file_path"], base_penalty)
         if penalty < 1.0:
             r["score"] *= penalty
             r["resurfaced"] = True
@@ -647,7 +583,7 @@ def search_chunks_contextual(
         else:
             r["resurfaced"] = False
 
-    circling_files = detect_circling_topics(query_embedding)
+    circling_files = session.get_circling_files(query_embedding, embed_fn=embed_query)
     for r in candidates:
         if r["file_path"] in circling_files:
             r["score"] *= 1.3
@@ -661,8 +597,9 @@ def search_chunks_contextual(
     results = results[:limit]
 
     surfaced_files = [r["file_path"] for r in results]
-    record_surfaced(results)
-    record_query(query_text, query_embedding, surfaced_files)
+    session.record_surfaced(results, cfg.surfaced_cap)
+    session.record_query(query_text, surfaced_files, cfg.max_queries)
+    session.save()
 
     metadata = {
         "mode": mode,
@@ -670,7 +607,7 @@ def search_chunks_contextual(
         "slots": slots,
         "circling_count": sum(1 for r in results if r.get("circling")),
         "resurfaced_count": sum(1 for r in results if r.get("resurfaced")),
-        "session_queries": len(_session_queries),
+        "session_queries": len(session.queries),
     }
 
     return results, metadata

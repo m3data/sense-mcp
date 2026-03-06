@@ -1,15 +1,21 @@
 {
-  "task_id": "test-corpus",
+  "task_id": "a2-server-adopt-session-module",
   "token_budget": 8000,
-  "tokens_used": 181,
+  "tokens_used": 234,
   "elements_selected": [
     {
       "source": "plan-meta/description",
-      "content": "Create the synthetic test corpus in tests/fixtures/corpus/. Nine files across three projects plus root, with thematically distinct content so semantic similarity is meaningful. project-a theme: coherence and entrainment (CLAUDE.md, server.py, docs/overview.md). project-b theme: teaching and pedagogy (two TRACE files with different dates, research/findings.md). project-c theme: cooperative economics (README.md, analysis.py). Root: root-file.md about general ecosystem overview. Each file should be 200-600 words of realistic content — not lorem ipsum. The content needs to be semantically distinct enough that a query about 'entrainment' surfaces project-a files, a query about 'pedagogy' surfaces project-b files, etc.",
-      "token_cost": 181,
+      "content": "Refactor server.py to use the new session module instead of in-process globals. (1) Import session module. (2) In search_chunks_contextual: load shared state at entry, use session.get_surfaced_penalty() for resurfacing, pass embed_query as the embed_fn for circling detection, call session.record_surfaced() and session.record_query() after assembly, save state before return. (3) Remove the old global _session_surfaced and _session_queries dicts. (4) Remove the old record_surfaced(), record_query(), get_surfaced_penalty(), detect_circling_topics() functions from server.py. (5) Keep the comment block (lines 372-380) explaining the architecture — update it to describe the shared state solution. (6) search_chunks (flat path) remains unchanged — no session tracking on flat searches.",
+      "token_cost": 197,
       "priority": "PlanMeta"
+    },
+    {
+      "source": "memory/episodic/task-a1-session-state-module-changes",
+      "content": "Modified 6 files (+331, -117): sense_mcp/hook.py, sense_mcp/server.py, sense_mcp/session.py, tests/conftest.py, tests/test_mode_retrieval.py and 1 more",
+      "token_cost": 37,
+      "priority": "AgentMemory"
     }
   ],
   "elements_excluded": [],
-  "constructed_at": "2026-03-03T22:24:04Z"
+  "constructed_at": "2026-03-06T10:44:31Z"
 }
