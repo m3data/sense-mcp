@@ -179,7 +179,7 @@ def test_metadata_has_required_fields(fixture_db):
 def test_session_queries_accumulate_across_calls(fixture_db):
     """session_queries count in metadata grows with each contextual search call."""
     # Reset to known state (autouse fixture already does this, but be explicit)
-    server_module._session_queries.clear()
+    server_module._session.queries.clear()
 
     emb1 = _load_embedding(fixture_db, 1)
     emb2 = _load_embedding(fixture_db, 2)

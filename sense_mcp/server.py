@@ -25,6 +25,7 @@ from mcp.server.fastmcp import FastMCP
 from openai import OpenAI
 
 from .config import get_config
+from .session import SessionState
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -371,51 +372,28 @@ def cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
 # ---------------------------------------------------------------------------
 # Session trajectory tracking (MCP-scoped, in-memory)
 #
-# These globals only accumulate state within the long-running MCP server
-# process. The auto-query hook (sense-auto-query.py) imports this module
-# in a fresh process per invocation, so hook-based searches always start
-# with empty state — session tracking is structurally inoperative for
-# ambient (hook-based) queries. The hook maintains its own lightweight
-# file-based dedup in /tmp/sense-auto-query-{session_id}.json.
+# _session accumulates state within the long-running MCP server process.
+# The hook (hook.py) uses SessionState.load()/save() for per-invocation
+# persistence — state is shared via /tmp/sense-session-state.json.
 # ---------------------------------------------------------------------------
 
-# {file_path: {"count": int, "last_ts": float}}
-_session_surfaced: dict[str, dict] = {}
+_session = SessionState()
 
-# [{"query": str, "embedding": np.ndarray, "ts": float, "surfaced_files": list[str]}]
-_session_queries: list[dict] = []
+# In-process embedding cache: query text → np.ndarray.
+# Populated by record_query() so detect_circling_topics() avoids API calls for
+# already-embedded queries.  Not persisted — lives only in the server process.
+_query_embedding_cache: dict[str, np.ndarray] = {}
 
 
 def record_surfaced(results: list[dict]) -> None:
     """Log which files were surfaced in a result set."""
-    now = time.time()
-    for r in results:
-        fp = r["file_path"]
-        if fp in _session_surfaced:
-            _session_surfaced[fp]["count"] += 1
-            _session_surfaced[fp]["last_ts"] = now
-        else:
-            _session_surfaced[fp] = {"count": 1, "last_ts": now}
-
-    cap = cfg.surfaced_cap
-    if len(_session_surfaced) > cap:
-        by_ts = sorted(_session_surfaced.items(), key=lambda kv: kv[1]["last_ts"])
-        to_remove = len(_session_surfaced) - cap
-        for key, _ in by_ts[:to_remove]:
-            del _session_surfaced[key]
+    _session.record_surfaced(results, cfg.surfaced_cap)
 
 
 def record_query(query: str, embedding: np.ndarray, surfaced_files: list[str]) -> None:
-    """Log a query embedding for circling detection."""
-    _session_queries.append({
-        "query": query,
-        "embedding": embedding,
-        "ts": time.time(),
-        "surfaced_files": surfaced_files,
-    })
-    max_q = cfg.max_queries
-    if len(_session_queries) > max_q:
-        _session_queries.pop(0)
+    """Log a query for circling detection."""
+    _session.record_query(query, surfaced_files, cfg.max_queries)
+    _query_embedding_cache[query] = embedding  # cache so detect_circling_topics avoids re-embedding
 
 
 def get_surfaced_penalty(file_path: str, base_penalty: float) -> float:
@@ -423,10 +401,7 @@ def get_surfaced_penalty(file_path: str, base_penalty: float) -> float:
 
     penalty^count, floored at 0.05 so nothing vanishes entirely.
     """
-    entry = _session_surfaced.get(file_path)
-    if not entry:
-        return 1.0
-    return max(base_penalty ** entry["count"], 0.05)
+    return _session.get_surfaced_penalty(file_path, base_penalty)
 
 
 def detect_circling_topics(embedding: np.ndarray, threshold: float = 0.75) -> set[str]:
@@ -435,12 +410,12 @@ def detect_circling_topics(embedding: np.ndarray, threshold: float = 0.75) -> se
     Returns file paths that appeared in results of similar prior queries —
     these are circling topics (salience signal, worth boosting).
     """
-    circling_files: set[str] = set()
-    for past in _session_queries:
-        sim = cosine_similarity(embedding, past["embedding"])
-        if sim >= threshold:
-            circling_files.update(past["surfaced_files"])
-    return circling_files
+    def _embed_with_cache(text: str) -> np.ndarray:
+        if text in _query_embedding_cache:
+            return _query_embedding_cache[text]
+        return embed_query(text)
+
+    return _session.get_circling_files(embedding, embed_fn=_embed_with_cache, threshold=threshold)
 
 
 def search_chunks(
@@ -670,7 +645,7 @@ def search_chunks_contextual(
         "slots": slots,
         "circling_count": sum(1 for r in results if r.get("circling")),
         "resurfaced_count": sum(1 for r in results if r.get("resurfaced")),
-        "session_queries": len(_session_queries),
+        "session_queries": len(_session.queries),
     }
 
     return results, metadata
