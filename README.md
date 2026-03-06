@@ -1,7 +1,7 @@
 # Sense
 
 ![Repo Status](https://img.shields.io/badge/REPO_STATUS-Active_Research-blue?style=for-the-badge&labelColor=8b5e3c&color=e5dac1)
-![Version](https://img.shields.io/badge/VERSION-0.1.1-blue?style=for-the-badge&labelColor=3b82f6&color=1e40af)
+![Version](https://img.shields.io/badge/VERSION-0.2.0-blue?style=for-the-badge&labelColor=3b82f6&color=1e40af)
 ![License](https://img.shields.io/badge/LICENSE-Apache_2.0-green?style=for-the-badge&labelColor=10b981&color=047857)
 ![Python](https://img.shields.io/badge/PYTHON-3.11+-green?style=for-the-badge&labelColor=10b981&color=047857)
 ![MCP](https://img.shields.io/badge/MCP-stdio-purple?style=for-the-badge&labelColor=7c3aed&color=5b21b6)
@@ -28,7 +28,7 @@ It runs as an [MCP](https://modelcontextprotocol.io/) server for [Claude Code](h
 
 When paired with [Vibe Harness](https://github.com/m3data/vibe-harness-mcp), what surfaces also changes based on what you're doing. Exploring widens the aperture — cross-project connections, unexpected adjacencies. Building narrows it to code and documentation in the current project. The same corpus looks different depending on your working mode.
 
-**Source-classified, diversity-structured.** Files are classified into types (traces, code, research, documentation, reference, teaching), each with distinct decay rates and mode weightings. Results are structured into confirmation slots (highest relevance), divergence slots (what challenges the current frame), and serendipity slots (from projects you weren't looking at). The goal is productive connections, not just the nearest match.
+**Source-classified, diversity-structured.** Files are classified into types (traces, code, research, documentation, reference, teaching), each with distinct decay rates and mode weightings. Results are structured into confirmation slots (highest relevance), divergence slots (what challenges the current frame), and serendipity slots (from projects you weren't looking at). The candidate pool uses stratified sampling to guarantee representation across source types, so minority types can surface when mode multipliers promote them. The goal is productive connections, not just the nearest match.
 
 ## Quick start
 
@@ -88,7 +88,7 @@ Add to `.claude/settings.json`:
 
 Requires `uv tool install` (Option B) — the hook runs on every prompt and needs sub-second startup, so `uvx` cold-start is too slow.
 
-The hook gates on prompt length, cooldown, and continuation signals. It opens the SQLite DB in read-only mode and coexists safely with the running MCP server.
+The hook gates on prompt length, cooldown, and continuation signals. It opens the SQLite DB in read-only mode and coexists safely with the running MCP server. Session state (resurfacing penalties, query history, cooldown) is shared between the hook and MCP server via a file-locked JSON store, so both callers contribute to and benefit from the same session context.
 
 ### Development install
 
