@@ -1,12 +1,12 @@
 {
-  "task_id": "c1-integration-test",
+  "task_id": "a2-server-adopt-session-module",
   "token_budget": 8000,
-  "tokens_used": 383,
+  "tokens_used": 234,
   "elements_selected": [
     {
       "source": "plan-meta/description",
-      "content": "Write integration tests verifying P0 and P1 fixes work end-to-end. Create tests/test_integration_p0_p1.py with 5 scenarios using mock embeddings (no real API calls): (1) Session state persistence across callers: simulate MCP search (call search_chunks_contextual with mode), then load shared state and verify surfaced files recorded, then simulate hook-style search verifying resurfacing penalty applies. (2) Bidirectional state: record surfaced via hook-style call, verify MCP-style call sees them. (3) Circling detection across callers: record query in shared state, verify circling files detected on similar query from other caller. (4) Stratified pool effectiveness: insert fixture chunks heavily skewed toward documentation type (20 doc, 3 research, 3 code), run think-with mode search, verify research chunks appear in results despite low baseline rank. (5) Cooldown shared: set last_query_time in shared state, verify hook gate rejects within cooldown window. Tests must be self-contained: create their own fixture DB and clean up /tmp/sense-session-state.json.",
-      "token_cost": 267,
+      "content": "Refactor server.py to use the new session module instead of in-process globals. (1) Import session module. (2) In search_chunks_contextual: load shared state at entry, use session.get_surfaced_penalty() for resurfacing, pass embed_query as the embed_fn for circling detection, call session.record_surfaced() and session.record_query() after assembly, save state before return. (3) Remove the old global _session_surfaced and _session_queries dicts. (4) Remove the old record_surfaced(), record_query(), get_surfaced_penalty(), detect_circling_topics() functions from server.py. (5) Keep the comment block (lines 372-380) explaining the architecture — update it to describe the shared state solution. (6) search_chunks (flat path) remains unchanged — no session tracking on flat searches.",
+      "token_cost": 197,
       "priority": "PlanMeta"
     },
     {
@@ -14,26 +14,8 @@
       "content": "Modified 6 files (+331, -117): sense_mcp/hook.py, sense_mcp/server.py, sense_mcp/session.py, tests/conftest.py, tests/test_mode_retrieval.py and 1 more",
       "token_cost": 37,
       "priority": "AgentMemory"
-    },
-    {
-      "source": "memory/episodic/task-a3-hook-adopt-session-module-changes",
-      "content": "Modified 2 files (+15, -9): .hence/context-manifest.json, sense_mcp/hook.py",
-      "token_cost": 18,
-      "priority": "AgentMemory"
-    },
-    {
-      "source": "memory/episodic/task-a2-server-adopt-session-module-changes",
-      "content": "Modified 4 files (+32, -63): sense_mcp/server.py, sense_mcp/session.py, tests/conftest.py, tests/test_mode_retrieval.py",
-      "token_cost": 29,
-      "priority": "AgentMemory"
-    },
-    {
-      "source": "memory/episodic/task-b1-stratified-pool-changes",
-      "content": "Modified 4 files (+95, -8): .hence/context-manifest.json, sense_mcp/config.py, sense_mcp/server.py, tests/test_mode_retrieval.py",
-      "token_cost": 32,
-      "priority": "AgentMemory"
     }
   ],
   "elements_excluded": [],
-  "constructed_at": "2026-03-06T10:53:56Z"
+  "constructed_at": "2026-03-06T10:44:31Z"
 }

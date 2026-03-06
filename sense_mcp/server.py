@@ -551,35 +551,8 @@ def search_chunks_contextual(
     profile = mode_profiles[mode]
     slots = diversity_slots[profile["diversity_profile"]]
 
-    pool_size = limit * 8
-    raw_candidates = search_chunks(query_embedding, project, None, pool_size)
-
-    # --- Stratified pool assembly ---
-    # Group by source_type (each list is already score-sorted from search_chunks)
-    by_type: dict[str, list[dict]] = {}
-    for r in raw_candidates:
-        stype = r["source_type"]
-        if stype not in by_type:
-            by_type[stype] = []
-        by_type[stype].append(r)
-
-    num_active_types = len(by_type)
-    if num_active_types == 0:
-        candidates = []
-    else:
-        per_type_quota = max(pool_size // num_active_types, cfg.min_type_slots)
-        stratified: list[dict] = []
-        used_ids: set[int] = set()
-        for type_candidates in by_type.values():
-            take = min(len(type_candidates), per_type_quota)
-            for r in type_candidates[:take]:
-                stratified.append(r)
-                used_ids.add(id(r))
-        # Fill remaining slots from leftover candidates (raw_candidates is
-        # already sorted by score descending, so order is preserved)
-        remaining = [r for r in raw_candidates if id(r) not in used_ids]
-        fill_slots = pool_size - len(stratified)
-        candidates = stratified + remaining[:max(0, fill_slots)]
+    pool_size = limit * 5
+    candidates = search_chunks(query_embedding, project, None, pool_size)
 
     if source_type:
         for r in candidates:
