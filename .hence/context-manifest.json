@@ -1,15 +1,15 @@
 {
-  "task_id": "test-corpus",
+  "task_id": "a1-session-state-module",
   "token_budget": 8000,
-  "tokens_used": 181,
+  "tokens_used": 342,
   "elements_selected": [
     {
       "source": "plan-meta/description",
-      "content": "Create the synthetic test corpus in tests/fixtures/corpus/. Nine files across three projects plus root, with thematically distinct content so semantic similarity is meaningful. project-a theme: coherence and entrainment (CLAUDE.md, server.py, docs/overview.md). project-b theme: teaching and pedagogy (two TRACE files with different dates, research/findings.md). project-c theme: cooperative economics (README.md, analysis.py). Root: root-file.md about general ecosystem overview. Each file should be 200-600 words of realistic content — not lorem ipsum. The content needs to be semantically distinct enough that a query about 'entrainment' surfaces project-a files, a query about 'pedagogy' surfaces project-b files, etc.",
-      "token_cost": 181,
+      "content": "Extract session tracking into a shared module that persists state to a JSON file. Create sense_mcp/session.py with: (1) SessionState class holding surfaced dict {file_path: {count, last_ts}} and query history [{query, ts, surfaced_files}] — same structure as current _session_surfaced and _session_queries but serialisable (no embeddings stored; circling detection re-embeds past query texts on demand). (2) load() and save() using /tmp/sense-session-state.json (single file — MCP server has no session_id concept). Use file locking (fcntl.flock) for safe concurrent read/write between hook and MCP. (3) record_surfaced(results) — updates surfaced counts. (4) record_query(query_text, surfaced_files) — appends to query history. (5) get_surfaced_penalty(file_path, base_penalty) — same formula as current: penalty^count, floor 0.05. (6) get_circling_files(query_embedding, embed_fn, threshold=0.75) — re-embeds past query texts via provided embed_fn, returns file paths from queries with similarity >= threshold. (7) LRU eviction on surfaced (cap from config.surfaced_cap), rolling window on queries (cap from config.max_queries). (8) last_query_time field for hook cooldown. The module must be importable by both server.py and hook.py without circular imports — do NOT import from server.py or config.py at module level; accept config values as parameters.",
+      "token_cost": 342,
       "priority": "PlanMeta"
     }
   ],
   "elements_excluded": [],
-  "constructed_at": "2026-03-03T22:24:04Z"
+  "constructed_at": "2026-03-06T10:36:57Z"
 }
