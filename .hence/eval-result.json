@@ -4,24 +4,24 @@
   "exit_code": 0,
   "diff_summary": {
     "files_changed": 4,
-    "insertions": 32,
-    "deletions": 63,
+    "insertions": 95,
+    "deletions": 8,
     "file_list": [
+      ".hence/context-manifest.json",
+      "sense_mcp/config.py",
       "sense_mcp/server.py",
-      "sense_mcp/session.py",
-      "tests/conftest.py",
       "tests/test_mode_retrieval.py"
     ],
-    "dirty_files": 1
+    "dirty_files": 0
   },
   "learnings": [
     {
-      "key": "task-a2-server-adopt-session-module-changes",
-      "content": "Modified 4 files (+32, -63): sense_mcp/server.py, sense_mcp/session.py, tests/conftest.py, tests/test_mode_retrieval.py",
+      "key": "task-b1-stratified-pool-changes",
+      "content": "Modified 4 files (+95, -8): .hence/context-manifest.json, sense_mcp/config.py, sense_mcp/server.py, tests/test_mode_retrieval.py",
       "memory_type": "episodic",
       "confidence": 0.8
     }
   ],
-  "branch_name": "hence/a2-server-adopt-session-module-v1",
-  "evaluated_at": "2026-03-06T10:49:22Z"
+  "branch_name": "hence/b1-stratified-pool-v1",
+  "evaluated_at": "2026-03-06T10:53:46Z"
 }
