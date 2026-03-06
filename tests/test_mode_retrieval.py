@@ -1,6 +1,6 @@
 """Tests for search_chunks_contextual() — REQ-009.
 
-Covers 7 scenarios:
+Covers 9 scenarios:
 1. No mode active → falls through to flat search (same file_paths as search_chunks)
 2. mode='none' → bypasses auto-detection, metadata has mode=None
 3. build mode → code results carry mode_multiplier=1.5
@@ -8,6 +8,8 @@ Covers 7 scenarios:
 5. cool-off mode → all mode_multiplier values are < 1.0
 6. Metadata dict contains required fields (mode, diversity_profile, slots, session_queries)
 7. session_queries count accumulates across multiple calls within the same process
+8. min_type_slots config key defaults to 2
+9. Stratified pool includes candidates from multiple source_types in results
 """
 
 import sqlite3
@@ -194,3 +196,44 @@ def test_session_queries_accumulate_across_calls(fixture_db, monkeypatch):
     assert meta1["session_queries"] == 1
     assert meta2["session_queries"] == 2
     assert meta3["session_queries"] == 3
+
+
+# ---------------------------------------------------------------------------
+# Scenario 8: min_type_slots config defaults to 2
+# ---------------------------------------------------------------------------
+
+
+def test_min_type_slots_config_default(test_env):
+    """The [mode] min_type_slots key defaults to 2."""
+    assert test_env.min_type_slots == 2
+
+
+# ---------------------------------------------------------------------------
+# Scenario 9: Stratified pool ensures multiple source_types appear in results
+# ---------------------------------------------------------------------------
+
+
+def test_stratified_pool_includes_multiple_source_types(fixture_db, monkeypatch):
+    """Stratified pool assembly produces results spanning multiple source_types.
+
+    The fixture DB has 4 source_types (code, documentation, project_claude, trace).
+    With explore mode (wide: [4,3,3]) and limit=10, the stratified pool (pool_size=80)
+    guarantees per-type representation, so the final results should include chunks
+    from at least 2 distinct source_types.
+    """
+    monkeypatch.setattr(server_module, "embed_query", lambda _: np.zeros(1536, dtype=np.float32))
+
+    emb = _load_embedding(fixture_db, 1)
+
+    results, meta = search_chunks_contextual(
+        emb, "entrainment adaptive capacity", mode="explore", limit=10
+    )
+
+    assert meta["mode"] == "explore"
+    assert len(results) > 0
+
+    source_types_in_results = {r["source_type"] for r in results}
+    assert len(source_types_in_results) >= 2, (
+        f"Expected results from at least 2 source_types with stratified pool, "
+        f"got: {source_types_in_results}"
+    )

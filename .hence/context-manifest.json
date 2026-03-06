@@ -1,12 +1,12 @@
 {
-  "task_id": "a2-server-adopt-session-module",
+  "task_id": "b1-stratified-pool",
   "token_budget": 8000,
-  "tokens_used": 234,
+  "tokens_used": 302,
   "elements_selected": [
     {
       "source": "plan-meta/description",
-      "content": "Refactor server.py to use the new session module instead of in-process globals. (1) Import session module. (2) In search_chunks_contextual: load shared state at entry, use session.get_surfaced_penalty() for resurfacing, pass embed_query as the embed_fn for circling detection, call session.record_surfaced() and session.record_query() after assembly, save state before return. (3) Remove the old global _session_surfaced and _session_queries dicts. (4) Remove the old record_surfaced(), record_query(), get_surfaced_penalty(), detect_circling_topics() functions from server.py. (5) Keep the comment block (lines 372-380) explaining the architecture — update it to describe the shared state solution. (6) search_chunks (flat path) remains unchanged — no session tracking on flat searches.",
-      "token_cost": 197,
+      "content": "Add stratified sampling to the candidate pool in search_chunks_contextual. Currently pool_size = limit * 5 and all candidates come from search_chunks ranked by sim*decay. Change to: (1) Fetch larger raw pool (limit * 8) via search_chunks. (2) Group candidates by source_type. (3) Reserve floor(pool_size / num_active_types) slots per type (minimum min_type_slots candidates per type, if available). (4) Fill remaining pool slots by global score ranking from leftover candidates. (5) Apply mode multipliers to this type-diverse pool (rest of pipeline unchanged). Add config key [mode] min_type_slots (default 2) as the minimum reserved slots per source type. If a type has fewer candidates than min_type_slots, take all of them. This is a surgical change to the pool assembly — everything downstream (mode multipliers, diversity assembly, session tracking) stays the same.",
+      "token_cost": 218,
       "priority": "PlanMeta"
     },
     {
@@ -14,8 +14,20 @@
       "content": "Modified 6 files (+331, -117): sense_mcp/hook.py, sense_mcp/server.py, sense_mcp/session.py, tests/conftest.py, tests/test_mode_retrieval.py and 1 more",
       "token_cost": 37,
       "priority": "AgentMemory"
+    },
+    {
+      "source": "memory/episodic/task-a3-hook-adopt-session-module-changes",
+      "content": "Modified 2 files (+15, -9): .hence/context-manifest.json, sense_mcp/hook.py",
+      "token_cost": 18,
+      "priority": "AgentMemory"
+    },
+    {
+      "source": "memory/episodic/task-a2-server-adopt-session-module-changes",
+      "content": "Modified 4 files (+32, -63): sense_mcp/server.py, sense_mcp/session.py, tests/conftest.py, tests/test_mode_retrieval.py",
+      "token_cost": 29,
+      "priority": "AgentMemory"
     }
   ],
   "elements_excluded": [],
-  "constructed_at": "2026-03-06T10:44:31Z"
+  "constructed_at": "2026-03-06T10:50:17Z"
 }
