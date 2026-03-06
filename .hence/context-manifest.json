@@ -1,12 +1,12 @@
 {
-  "task_id": "b1-stratified-pool",
+  "task_id": "c1-integration-test",
   "token_budget": 8000,
-  "tokens_used": 302,
+  "tokens_used": 383,
   "elements_selected": [
     {
       "source": "plan-meta/description",
-      "content": "Add stratified sampling to the candidate pool in search_chunks_contextual. Currently pool_size = limit * 5 and all candidates come from search_chunks ranked by sim*decay. Change to: (1) Fetch larger raw pool (limit * 8) via search_chunks. (2) Group candidates by source_type. (3) Reserve floor(pool_size / num_active_types) slots per type (minimum min_type_slots candidates per type, if available). (4) Fill remaining pool slots by global score ranking from leftover candidates. (5) Apply mode multipliers to this type-diverse pool (rest of pipeline unchanged). Add config key [mode] min_type_slots (default 2) as the minimum reserved slots per source type. If a type has fewer candidates than min_type_slots, take all of them. This is a surgical change to the pool assembly — everything downstream (mode multipliers, diversity assembly, session tracking) stays the same.",
-      "token_cost": 218,
+      "content": "Write integration tests verifying P0 and P1 fixes work end-to-end. Create tests/test_integration_p0_p1.py with 5 scenarios using mock embeddings (no real API calls): (1) Session state persistence across callers: simulate MCP search (call search_chunks_contextual with mode), then load shared state and verify surfaced files recorded, then simulate hook-style search verifying resurfacing penalty applies. (2) Bidirectional state: record surfaced via hook-style call, verify MCP-style call sees them. (3) Circling detection across callers: record query in shared state, verify circling files detected on similar query from other caller. (4) Stratified pool effectiveness: insert fixture chunks heavily skewed toward documentation type (20 doc, 3 research, 3 code), run think-with mode search, verify research chunks appear in results despite low baseline rank. (5) Cooldown shared: set last_query_time in shared state, verify hook gate rejects within cooldown window. Tests must be self-contained: create their own fixture DB and clean up /tmp/sense-session-state.json.",
+      "token_cost": 267,
       "priority": "PlanMeta"
     },
     {
@@ -26,8 +26,14 @@
       "content": "Modified 4 files (+32, -63): sense_mcp/server.py, sense_mcp/session.py, tests/conftest.py, tests/test_mode_retrieval.py",
       "token_cost": 29,
       "priority": "AgentMemory"
+    },
+    {
+      "source": "memory/episodic/task-b1-stratified-pool-changes",
+      "content": "Modified 4 files (+95, -8): .hence/context-manifest.json, sense_mcp/config.py, sense_mcp/server.py, tests/test_mode_retrieval.py",
+      "token_cost": 32,
+      "priority": "AgentMemory"
     }
   ],
   "elements_excluded": [],
-  "constructed_at": "2026-03-06T10:50:17Z"
+  "constructed_at": "2026-03-06T10:53:56Z"
 }
