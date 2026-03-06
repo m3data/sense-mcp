@@ -3,25 +3,23 @@
   "confidence": 1.0,
   "exit_code": 0,
   "diff_summary": {
-    "files_changed": 4,
-    "insertions": 95,
-    "deletions": 8,
+    "files_changed": 2,
+    "insertions": 292,
+    "deletions": 5,
     "file_list": [
       ".hence/context-manifest.json",
-      "sense_mcp/config.py",
-      "sense_mcp/server.py",
-      "tests/test_mode_retrieval.py"
+      "tests/test_integration_p0_p1.py"
     ],
     "dirty_files": 0
   },
   "learnings": [
     {
-      "key": "task-b1-stratified-pool-changes",
-      "content": "Modified 4 files (+95, -8): .hence/context-manifest.json, sense_mcp/config.py, sense_mcp/server.py, tests/test_mode_retrieval.py",
+      "key": "task-c1-integration-test-changes",
+      "content": "Modified 2 files (+292, -5): .hence/context-manifest.json, tests/test_integration_p0_p1.py",
       "memory_type": "episodic",
       "confidence": 0.8
     }
   ],
-  "branch_name": "hence/b1-stratified-pool-v1",
-  "evaluated_at": "2026-03-06T10:53:46Z"
+  "branch_name": "hence/c1-integration-test-v1",
+  "evaluated_at": "2026-03-06T11:01:17Z"
 }
