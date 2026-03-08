@@ -144,6 +144,17 @@ def main():
             state.save()
             return
 
+        # Load relevance weights from feedback (read-only is fine)
+        from sense_mcp.feedback import load_relevance_weights
+        try:
+            rel_weights = load_relevance_weights(
+                ro_conn,
+                boost_factor=cfg.feedback_boost_factor,
+                prior=cfg.feedback_prior,
+            )
+        except Exception:
+            rel_weights = {}
+
         # Filter and deduplicate
         seen_files = set()
         filtered = []
@@ -158,6 +169,11 @@ def main():
             if fp in seen_files:
                 continue
             seen_files.add(fp)
+
+            # Apply relevance feedback weight
+            rel_w = rel_weights.get(fp, 1.0)
+            if rel_w != 1.0:
+                r["score"] *= rel_w
 
             # De-weight previously surfaced files using count-based penalty
             penalty = state.get_surfaced_penalty(fp, SURFACED_PENALTY)

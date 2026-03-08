@@ -56,6 +56,11 @@ _DEFAULTS = {
         "surfaced_cap": 500,
         "max_queries": 50,
     },
+    "feedback": {
+        "boost_factor": 0.3,
+        "prior": 2.0,
+        "weight_cache_ttl": 60,
+    },
     "mode": {
         "history_path": "~/.vibe-harness/mode-history.jsonl",
         "min_type_slots": 2,
@@ -308,6 +313,18 @@ class SenseConfig:
     def diversity_slots(self) -> dict[str, tuple[int, int, int]]:
         raw = self._raw["mode"]["diversity_slots"]
         return {k: tuple(v) for k, v in raw.items()}
+
+    @property
+    def feedback_boost_factor(self) -> float:
+        return self._raw["feedback"]["boost_factor"]
+
+    @property
+    def feedback_prior(self) -> float:
+        return self._raw["feedback"]["prior"]
+
+    @property
+    def feedback_weight_cache_ttl(self) -> int:
+        return self._raw["feedback"]["weight_cache_ttl"]
 
     def classify_source_type(self, path: Path) -> str:
         """Classify a file using config-driven rules. First match wins."""

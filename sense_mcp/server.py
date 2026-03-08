@@ -25,6 +25,7 @@ from mcp.server.fastmcp import FastMCP
 from openai import OpenAI
 
 from .config import get_config
+from .feedback import init_feedback_table, load_relevance_weights, record_feedback, get_feedback_stats
 from .session import SessionState
 
 # ---------------------------------------------------------------------------
@@ -97,6 +98,7 @@ def _init_db(conn: sqlite3.Connection):
         );
     """)
     conn.commit()
+    init_feedback_table(conn)
 
 
 # ---------------------------------------------------------------------------
@@ -361,6 +363,39 @@ def compute_decay(source_type: str, date_str: str | None) -> float:
 # Search
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Relevance weight cache (feedback-driven)
+# ---------------------------------------------------------------------------
+
+_relevance_weights: dict[str, float] = {}
+_weights_loaded_at: float = 0.0
+
+
+def _get_relevance_weights() -> dict[str, float]:
+    """Return cached per-file relevance weights, refreshing if stale."""
+    global _relevance_weights, _weights_loaded_at
+    ttl = cfg.feedback_weight_cache_ttl
+    now = time.time()
+    if now - _weights_loaded_at < ttl:
+        return _relevance_weights
+    try:
+        _relevance_weights = load_relevance_weights(
+            get_db(),
+            boost_factor=cfg.feedback_boost_factor,
+            prior=cfg.feedback_prior,
+        )
+        _weights_loaded_at = now
+    except Exception:
+        pass  # graceful — use stale cache or empty dict
+    return _relevance_weights
+
+
+def _invalidate_weight_cache() -> None:
+    """Force next search to reload weights (call after recording feedback)."""
+    global _weights_loaded_at
+    _weights_loaded_at = 0.0
+
+
 def cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
     dot = np.dot(a, b)
     norm = np.linalg.norm(a) * np.linalg.norm(b)
@@ -401,18 +436,22 @@ def search_chunks(
 
     rows = conn.execute(sql, params).fetchall()
 
+    rel_weights = _get_relevance_weights()
+
     results = []
     for row in rows:
         (chunk_id, file_path, proj, stype, section, date, evergreen, content, token_count, emb_blob) = row
         stored_emb = np.frombuffer(emb_blob, dtype=np.float32)
         sim = cosine_similarity(query_embedding, stored_emb)
         decay = compute_decay(stype, date)
-        score = sim * decay
+        rel_w = rel_weights.get(file_path, 1.0)
+        score = sim * decay * rel_w
 
         results.append({
             "score": score,
             "similarity": sim,
             "decay": decay,
+            "relevance_weight": rel_w,
             "file_path": file_path,
             "project": proj,
             "source_type": stype,
@@ -626,6 +665,7 @@ def search_chunks_contextual(
     surfaced_files = [r["file_path"] for r in results]
     session.record_surfaced(results, cfg.surfaced_cap)
     session.record_query(query_text, surfaced_files, cfg.max_queries)
+    session.record_last_results(results, query_text)
     session.save()
 
     metadata = {
@@ -920,6 +960,126 @@ def sense_status() -> str:
         return "\n".join(lines)
     except Exception as e:
         return f"Error getting status: {e}"
+
+
+@mcp.tool()
+def sense_feedback(
+    label: str,
+    result_index: int = 0,
+    file_path: str = "",
+    note: str = "",
+) -> str:
+    """Record relevance feedback for a surfaced result.
+
+    Labels a previously surfaced file as 'useful' or 'noise' so Sense
+    can learn to distinguish signal from noise over time. Feedback adjusts
+    per-file relevance weights applied during search scoring.
+
+    Args:
+        label: 'useful' or 'noise'.
+        result_index: 1-based index from the most recent sense_search results.
+            Use this OR file_path, not both.
+        file_path: Full file path of the result. Use this when result_index
+            is not available.
+        note: Optional note explaining why (helps pattern analysis later).
+    """
+    if label not in ("useful", "noise"):
+        return f"Invalid label: {label!r}. Must be 'useful' or 'noise'."
+
+    session = SessionState.load()
+    query_text = ""
+    similarity = None
+
+    if result_index > 0:
+        if not session.last_results:
+            return "No recent search results in session state. Use file_path instead."
+        if result_index > len(session.last_results):
+            return f"Index {result_index} out of range (last search had {len(session.last_results)} results)."
+        entry = session.last_results[result_index - 1]
+        file_path = entry["file_path"]
+        query_text = entry.get("query", "")
+        similarity = entry.get("similarity")
+    elif not file_path:
+        return "Provide either result_index or file_path."
+
+    mode = detect_current_mode()
+
+    try:
+        record_feedback(
+            get_db(),
+            query_text=query_text,
+            file_path=file_path,
+            label=label,
+            similarity=similarity,
+            mode=mode,
+            note=note or None,
+        )
+        _invalidate_weight_cache()
+
+        root_str = str(cfg.root)
+        rel_path = file_path.replace(root_str + "/", "")
+        return f"Recorded: {rel_path} = {label}" + (f" ({note})" if note else "")
+    except Exception as e:
+        return f"Error recording feedback: {e}"
+
+
+@mcp.tool()
+def sense_feedback_stats() -> str:
+    """Show what Sense has learned from relevance feedback.
+
+    Summarises accumulated feedback: counts by label, most useful and
+    noisiest files, current relevance weights, and feedback by mode.
+    """
+    try:
+        stats = get_feedback_stats(get_db())
+
+        if stats["total"] == 0:
+            return "No feedback recorded yet. Use sense_feedback to label results."
+
+        root_str = str(cfg.root)
+
+        def rel(p):
+            return p.replace(root_str + "/", "")
+
+        lines = [
+            f"Total feedback: {stats['total']}",
+            f"  useful: {stats['by_label'].get('useful', 0)}",
+            f"  noise: {stats['by_label'].get('noise', 0)}",
+            "",
+        ]
+
+        if stats["top_useful"]:
+            lines.append("**Most useful files:**")
+            for fp, cnt in stats["top_useful"]:
+                lines.append(f"  {rel(fp)}: {cnt}x useful")
+            lines.append("")
+
+        if stats["top_noisy"]:
+            lines.append("**Noisiest files:**")
+            for fp, cnt in stats["top_noisy"]:
+                lines.append(f"  {rel(fp)}: {cnt}x noise")
+            lines.append("")
+
+        extremes = stats.get("weight_extremes", {})
+        if extremes.get("most_penalised"):
+            lines.append("**Current weight adjustments:**")
+            for fp, w in extremes["most_penalised"]:
+                if w < 1.0:
+                    lines.append(f"  {rel(fp)}: {w:.3f} (penalised)")
+            for fp, w in extremes.get("most_boosted", []):
+                if w > 1.0:
+                    lines.append(f"  {rel(fp)}: {w:.3f} (boosted)")
+            lines.append("")
+
+        if stats["by_mode"]:
+            lines.append("**By mode:**")
+            for mode_name, labels in stats["by_mode"].items():
+                parts = [f"{l}: {c}" for l, c in labels.items()]
+                lines.append(f"  {mode_name}: {', '.join(parts)}")
+
+        return "\n".join(lines)
+    except Exception as e:
+        return f"Error getting feedback stats: {e}"
 
 
 if __name__ == "__main__":

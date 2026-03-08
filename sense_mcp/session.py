@@ -35,6 +35,7 @@ class SessionState:
     surfaced: dict = field(default_factory=dict)
     queries: list = field(default_factory=list)
     last_query_time: float = 0.0
+    last_results: list = field(default_factory=list)  # [{file_path, query, similarity}]
 
     # -----------------------------------------------------------------------
     # Persistence
@@ -59,6 +60,7 @@ class SessionState:
             state.surfaced = data.get("surfaced", {})
             state.queries = data.get("queries", [])
             state.last_query_time = float(data.get("last_query_time", 0.0))
+            state.last_results = data.get("last_results", [])
             return state
         except (FileNotFoundError, json.JSONDecodeError, OSError):
             return cls()
@@ -76,6 +78,7 @@ class SessionState:
                             "surfaced": self.surfaced,
                             "queries": self.queries,
                             "last_query_time": self.last_query_time,
+                            "last_results": self.last_results,
                         },
                         f,
                     )
@@ -104,6 +107,19 @@ class SessionState:
             to_remove = len(self.surfaced) - surfaced_cap
             for key, _ in by_ts[:to_remove]:
                 del self.surfaced[key]
+
+    def record_last_results(
+        self, results: list[dict], query_text: str, cap: int = 20
+    ) -> None:
+        """Store the most recent search results for index-based feedback."""
+        self.last_results = [
+            {
+                "file_path": r["file_path"],
+                "query": query_text,
+                "similarity": r.get("similarity", 0.0),
+            }
+            for r in results[:cap]
+        ]
 
     def record_query(
         self,
