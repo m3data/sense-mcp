@@ -36,6 +36,7 @@ class SessionState:
     queries: list = field(default_factory=list)
     last_query_time: float = 0.0
     last_results: list = field(default_factory=list)  # [{file_path, query, similarity}]
+    trajectory_signal: dict = field(default_factory=dict)  # {delta_kappa, trend, turn_count, curvature_std}
 
     # -----------------------------------------------------------------------
     # Persistence
@@ -61,6 +62,7 @@ class SessionState:
             state.queries = data.get("queries", [])
             state.last_query_time = float(data.get("last_query_time", 0.0))
             state.last_results = data.get("last_results", [])
+            state.trajectory_signal = data.get("trajectory_signal", {})
             return state
         except (FileNotFoundError, json.JSONDecodeError, OSError):
             return cls()
@@ -79,6 +81,7 @@ class SessionState:
                             "queries": self.queries,
                             "last_query_time": self.last_query_time,
                             "last_results": self.last_results,
+                            "trajectory_signal": self.trajectory_signal,
                         },
                         f,
                     )

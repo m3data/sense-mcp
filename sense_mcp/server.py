@@ -27,6 +27,7 @@ from openai import OpenAI
 from .config import get_config
 from .feedback import init_feedback_table, load_relevance_weights, record_feedback, get_feedback_stats
 from .session import SessionState
+from .trajectory import TrajectoryComputer
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -572,23 +573,38 @@ def search_chunks_contextual(
     """
     session = SessionState.load()
 
+    # --- Trajectory computation (semantic climate) ---
+    traj = TrajectoryComputer.load()
+    traj.add_embedding(query_embedding)
+    traj_signal = traj.compute_signal()
+    traj.save()
+    session.trajectory_signal = traj_signal
+
     mode_profiles = cfg.mode_profiles
     diversity_slots = cfg.diversity_slots
 
     # Explicit "none" bypasses auto-detection → flat search
     if mode and mode.lower() in ("none", "flat"):
         results = search_chunks(query_embedding, project, source_type, limit)
-        return results, {"mode": None}
+        return results, {"mode": None, "trajectory": traj_signal}
 
     if not mode:
         mode = detect_current_mode()
 
     if not mode or mode not in mode_profiles:
         results = search_chunks(query_embedding, project, source_type, limit)
-        return results, {"mode": None}
+        return results, {"mode": None, "trajectory": traj_signal}
 
     profile = mode_profiles[mode]
-    slots = diversity_slots[profile["diversity_profile"]]
+    diversity_profile_name = profile["diversity_profile"]
+
+    # Anti-entrainment: if trajectory is converging, widen diversity
+    # regardless of mode profile. This is the core relevance realisation
+    # mechanism — when the conversation narrows, surface productive dissonance.
+    if traj_signal.get("trend") == "converging" and diversity_profile_name == "narrow":
+        diversity_profile_name = "wide"
+
+    slots = diversity_slots[diversity_profile_name]
 
     pool_size = limit * 8
     raw_candidates = search_chunks(query_embedding, project, None, pool_size)
@@ -670,11 +686,12 @@ def search_chunks_contextual(
 
     metadata = {
         "mode": mode,
-        "diversity_profile": profile["diversity_profile"],
+        "diversity_profile": diversity_profile_name,
         "slots": slots,
         "circling_count": sum(1 for r in results if r.get("circling")),
         "resurfaced_count": sum(1 for r in results if r.get("resurfaced")),
         "session_queries": len(session.queries),
+        "trajectory": traj_signal,
     }
 
     return results, metadata
@@ -842,14 +859,24 @@ def sense_search(
 
         root_str = str(cfg.root)
         active_mode = meta.get("mode")
+        traj_info = meta.get("trajectory", {})
+        traj_label = ""
+        if traj_info.get("trend") and traj_info["trend"] != "insufficient_data":
+            dk = traj_info.get("delta_kappa")
+            dk_str = f" dk={dk:.3f}" if dk is not None else ""
+            traj_label = f" | Trajectory: {traj_info['trend']}{dk_str} ({traj_info.get('turn_count', 0)} turns)"
+
         if active_mode:
             lines = [
                 f"Found {len(results)} result(s) for: \"{query}\"",
-                f"Mode: {active_mode} | Diversity: {meta['diversity_profile']} | Session queries: {meta['session_queries']}",
+                f"Mode: {active_mode} | Diversity: {meta['diversity_profile']} | Session queries: {meta['session_queries']}{traj_label}",
                 "",
             ]
         else:
-            lines = [f"Found {len(results)} result(s) for: \"{query}\"", ""]
+            header = f"Found {len(results)} result(s) for: \"{query}\""
+            if traj_label:
+                header += traj_label
+            lines = [header, ""]
 
         for i, r in enumerate(results, 1):
             rel_path = r["file_path"].replace(root_str + "/", "")

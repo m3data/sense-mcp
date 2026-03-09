@@ -47,11 +47,85 @@ MAX_RESULTS = 3
 PREVIEW_CHARS = 200
 SURFACED_PENALTY = 0.5
 MAX_EMBED_WORDS = 100  # truncate long prompts for embedding
+MIN_CONTEXT_QUERIES = 2  # need at least this many prior queries to blend
 
 
 # ---------------------------------------------------------------------------
 # Gate logic
 # ---------------------------------------------------------------------------
+
+def build_contextual_query(
+    current_emb: "np.ndarray",
+    session_state: SessionState,
+    embed_fn,
+    context_window: int = 5,
+    decay_factor: float = 0.5,
+    max_context_weight: float = 0.4,
+    session_timeout: int = 7200,
+    trajectory_signal: dict | None = None,
+) -> "np.ndarray":
+    """Blend current message embedding with recent query context.
+
+    Returns an L2-normalised composite embedding that preserves the current
+    message as dominant (>= 1 - max_context_weight of the blend) while
+    steering toward the conversation's semantic neighbourhood.
+
+    Falls back to current_emb unchanged when insufficient context exists.
+    """
+    import numpy as np
+
+    # Gate: need enough prior queries
+    if len(session_state.queries) < MIN_CONTEXT_QUERIES:
+        return current_emb
+
+    # Filter to queries within session timeout
+    now = time.time()
+    recent_queries = [
+        q for q in session_state.queries
+        if now - q.get("ts", 0) < session_timeout
+    ]
+
+    if len(recent_queries) < MIN_CONTEXT_QUERIES:
+        return current_emb
+
+    # Take last N queries
+    context_queries = recent_queries[-context_window:]
+
+    # Compute raw weights (most recent = index N-1 gets highest weight)
+    n = len(context_queries)
+    raw_weights = [decay_factor ** (n - 1 - i) for i in range(n)]
+
+    # Adjust the cap based on trajectory signal — this changes the TOTAL
+    # amount of context influence, not just its distribution
+    effective_cap = max_context_weight
+    if trajectory_signal:
+        trend = trajectory_signal.get("trend")
+        if trend == "converging":
+            effective_cap *= 0.5  # less total context, let current message break out
+        elif trend == "diverging":
+            effective_cap = min(effective_cap * 1.5, 0.6)  # more anchoring, hard ceiling at 0.6
+
+    # Cap total context weight to enforce current message dominance
+    context_sum = sum(raw_weights)
+    if context_sum > effective_cap:
+        scale = effective_cap / context_sum
+        weights = [w * scale for w in raw_weights]
+    else:
+        weights = raw_weights
+
+    # Re-embed context queries and blend
+    composite = current_emb.copy().astype(np.float64)
+    for weight, query_entry in zip(weights, context_queries):
+        ctx_emb = embed_fn(query_entry["query"])
+        composite += weight * ctx_emb
+
+    # L2 normalise
+    norm = np.linalg.norm(composite)
+    if norm > 0:
+        composite = composite / norm
+
+    return composite
+
 
 def should_search(prompt_text: str, session_state: SessionState) -> bool:
     """Apply gate conditions. Returns True if search should proceed."""
@@ -110,6 +184,7 @@ def main():
     # -----------------------------------------------------------------------
 
     from sense_mcp import server as sense_server
+    from sense_mcp.trajectory import TrajectoryComputer
 
     # Pre-seed a read-only DB connection to avoid WAL conflicts with the
     # running MCP server. Must happen BEFORE any search call.
@@ -131,9 +206,28 @@ def main():
         search_text = " ".join(words[:MAX_EMBED_WORDS])
         query_emb = sense_server.embed_query(search_text)
 
+        # Update trajectory (adds embedding, computes signal)
+        traj = TrajectoryComputer.load()
+        traj.add_embedding(query_emb)
+        traj_signal = traj.compute_signal()
+        traj.save()
+
+        # Build contextual query by blending with recent conversation
+        cfg = sense_server.cfg
+        search_emb = build_contextual_query(
+            current_emb=query_emb,
+            session_state=state,
+            embed_fn=sense_server.embed_query,
+            context_window=cfg.hook_context_window,
+            decay_factor=cfg.hook_context_decay,
+            max_context_weight=cfg.hook_max_context_weight,
+            session_timeout=cfg.hook_context_session_timeout,
+            trajectory_signal=traj_signal,
+        )
+
         # Search with mode-awareness (mode=None -> auto-detect from Vibe Harness)
         results, _meta = sense_server.search_chunks_contextual(
-            query_emb,
+            search_emb,
             query_text=search_text,
             mode=None,
             limit=5,
@@ -154,6 +248,10 @@ def main():
             )
         except Exception:
             rel_weights = {}
+
+        # Anti-entrainment: when trajectory is converging, boost cross-project
+        # and divergent results to surface productive dissonance.
+        is_converging = traj_signal.get("trend") == "converging"
 
         # Filter and deduplicate
         seen_files = set()
@@ -183,13 +281,18 @@ def main():
                 if r["score"] < SIMILARITY_THRESHOLD * 0.5:
                     continue
 
+            # Anti-entrainment boost: when converging, prefer cross-project
+            # and divergent source types to break the convergence trap
+            if is_converging and r.get("cross_project"):
+                r["score"] *= 1.3
+
             filtered.append(r)
             if len(filtered) >= MAX_RESULTS:
                 break
 
         # Update session state (even if no results — records cooldown)
-        cfg = sense_server.cfg
         state.last_query_time = time.time()
+        state.trajectory_signal = traj_signal
         state.record_surfaced(filtered, surfaced_cap=cfg.surfaced_cap)
         state.record_query(
             search_text,
@@ -204,6 +307,17 @@ def main():
         # Format output for injection
         eco_str = str(sense_server.ECOSYSTEM_ROOT)
         lines = ["<sense-context>", "Prior work that may be relevant:", ""]
+
+        # Add trajectory annotation when signal is meaningful
+        trend = traj_signal.get("trend", "insufficient_data")
+        if trend != "insufficient_data":
+            dk = traj_signal.get("delta_kappa")
+            dk_str = f" (dk={dk:.3f})" if dk is not None else ""
+            if trend == "converging":
+                lines.append(f"[Trajectory: {trend}{dk_str} -- surfacing for productive dissonance]")
+            else:
+                lines.append(f"[Trajectory: {trend}{dk_str}]")
+            lines.append("")
 
         for i, r in enumerate(filtered, 1):
             rel_path = r["file_path"].replace(eco_str + "/", "")

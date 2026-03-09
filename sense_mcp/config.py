@@ -61,6 +61,12 @@ _DEFAULTS = {
         "prior": 2.0,
         "weight_cache_ttl": 60,
     },
+    "hook": {
+        "context_window": 5,
+        "context_decay": 0.5,
+        "max_context_weight": 0.4,
+        "context_session_timeout": 7200,
+    },
     "mode": {
         "history_path": "~/.vibe-harness/mode-history.jsonl",
         "min_type_slots": 2,
@@ -325,6 +331,22 @@ class SenseConfig:
     @property
     def feedback_weight_cache_ttl(self) -> int:
         return self._raw["feedback"]["weight_cache_ttl"]
+
+    @property
+    def hook_context_window(self) -> int:
+        return self._raw["hook"]["context_window"]
+
+    @property
+    def hook_context_decay(self) -> float:
+        return self._raw["hook"]["context_decay"]
+
+    @property
+    def hook_max_context_weight(self) -> float:
+        return self._raw["hook"]["max_context_weight"]
+
+    @property
+    def hook_context_session_timeout(self) -> int:
+        return self._raw["hook"]["context_session_timeout"]
 
     def classify_source_type(self, path: Path) -> str:
         """Classify a file using config-driven rules. First match wins."""
