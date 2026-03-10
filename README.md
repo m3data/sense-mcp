@@ -184,6 +184,31 @@ Rules are evaluated in order. First match wins. Each rule maps files to a source
 | `path_segment` | Directory name(s) as path segments |
 | `extension` | File extension(s) |
 
+### Contextual query (trajectory blending)
+
+The hook blends recent conversation context into each search query. Configure in `sense.toml`:
+
+```toml
+[hook]
+context_window = 5              # Recent queries to blend
+context_decay = 0.5             # Exponential decay (older = less weight)
+max_context_weight = 0.4        # Cap on context contribution (current message >= 60%)
+context_session_timeout = 7200  # Reset after 2 hours of inactivity
+```
+
+The trajectory signal adjusts the cap automatically: converging conversations shrink it to 0.2 (tighter focus), diverging conversations expand it to 0.6 (wider context).
+
+### Relevance feedback
+
+Controls how auto-labels and human corrections influence retrieval weights:
+
+```toml
+[feedback]
+boost_factor = 0.3       # Weight multiplier range
+prior = 2.0              # Bayesian prior — higher = more labels needed to shift weights
+weight_cache_ttl = 60    # Seconds before recalculating from feedback table
+```
+
 ### Mode-aware retrieval
 
 When paired with [Vibe Harness](https://github.com/m3data/vibe-harness-mcp), search results are shaped by the current working mode:
