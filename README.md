@@ -1,7 +1,7 @@
 # Sense
 
 ![Repo Status](https://img.shields.io/badge/REPO_STATUS-Active_Research-blue?style=for-the-badge&labelColor=8b5e3c&color=e5dac1)
-![Version](https://img.shields.io/badge/VERSION-0.2.0-blue?style=for-the-badge&labelColor=3b82f6&color=1e40af)
+![Version](https://img.shields.io/badge/VERSION-0.3.0-blue?style=for-the-badge&labelColor=3b82f6&color=1e40af)
 ![License](https://img.shields.io/badge/LICENSE-Apache_2.0-green?style=for-the-badge&labelColor=10b981&color=047857)
 ![Python](https://img.shields.io/badge/PYTHON-3.11+-green?style=for-the-badge&labelColor=10b981&color=047857)
 ![MCP](https://img.shields.io/badge/MCP-stdio-purple?style=for-the-badge&labelColor=7c3aed&color=5b21b6)
@@ -24,11 +24,15 @@ It runs as an [MCP](https://modelcontextprotocol.io/) server for [Claude Code](h
 
 **Ambient, not invoked.** The auto-query hook fires on every prompt. Context arrives without being asked for. This is the primary interaction pattern — not a search box you type into, but a layer that's always running in the background, shaping what's visible.
 
+**Trajectory-aware.** Sense doesn't treat each prompt in isolation. It tracks the semantic trajectory of your conversation — accumulating query embeddings, computing local curvature (delta-kappa) via Frenet-Serret geometry — and blends recent context into each search. When a conversation is converging on a thread, search narrows. When it's diverging, the aperture widens. The query you send is shaped by the queries that came before it.
+
 **Knowledge metabolises.** A session trace from yesterday and a reference document from last year are not equally alive. Sense weights them differently — recent work surfaces more readily, old documentation fades, foundational reference stays evergreen. Different types of content have different half-lives because they are different kinds of knowledge.
 
 When paired with [Vibe Harness](https://github.com/m3data/vibe-harness-mcp), what surfaces also changes based on what you're doing. Exploring widens the aperture — cross-project connections, unexpected adjacencies. Building narrows it to code and documentation in the current project. The same corpus looks different depending on your working mode.
 
 **Source-classified, diversity-structured.** Files are classified into types (traces, code, research, documentation, reference, research etc), each with distinct decay rates that can be set and mode weightings. Results are structured into confirmation slots (highest relevance), divergence slots (what challenges the current frame), and serendipity slots (from projects you weren't looking at). The candidate pool uses stratified sampling to guarantee representation across source types, so minority types can surface when mode multipliers promote them. The goal is productive connections, not just the nearest match.
+
+**Learns from feedback.** Sense auto-labels every result it surfaces (useful or noise) and tracks human corrections. Labels feed back into retrieval weights through a Bayesian prior — files that consistently prove useful surface more readily, persistent noise gets suppressed. The feedback store is append-only with latest-wins semantics for weight calculation, so the full correction history is available as training data.
 
 ## Quick start
 
@@ -100,6 +104,26 @@ uv venv && source .venv/bin/activate
 uv pip install -e .
 ```
 
+## Companion dashboard
+
+A local web app for observing and correcting Sense's relevance judgments in real time.
+
+```bash
+python sense-mcp/dashboard/serve.py
+# Open http://localhost:8111
+```
+
+The dashboard reads existing data stores (sense.db, session state, trajectory history) and renders:
+
+- **Hit rate** — session-scoped relevance success as a hero metric, colour-coded by health
+- **Query timeline** — every hook-fired query with expandable results showing file path, section, similarity score, source type, and label
+- **Trajectory signal** — current semantic trajectory (converging/diverging/stable) with delta-kappa values
+- **Feedback stream** — chronological log of auto-labels and human corrections
+
+Click any result label to toggle it between useful and noise. Corrections write back to the feedback table as `corrected:<user>` entries and shift retrieval weights from the next query.
+
+If using the Claude Code session hooks, the dashboard auto-starts when a session opens and stops when it closes.
+
 ## Tools
 
 ### `sense_search`
@@ -113,6 +137,14 @@ Build or update the index. Uses SHA-256 file hashing for change detection — un
 ### `sense_status`
 
 Index statistics: chunk counts by project and source type, total tokens, last sync time.
+
+### `sense_feedback`
+
+Submit relevance feedback for a search result. Accepts `query_text`, `file_path`, `label` (useful/noise), and optional `note`. The dashboard calls this for human corrections; you can also call it directly.
+
+### `sense_feedback_stats`
+
+Summary statistics on collected feedback: total labels, breakdown by source (auto:hook, manual, corrected), correction rate, and per-file weight previews.
 
 ## Slash commands
 
@@ -178,7 +210,9 @@ Mode profiles are fully configurable in `sense.toml` under `[mode.profiles.*]`.
 
 Sense is also a research artifact. It investigates whether relevance realisation — the pre-reflective process by which organisms determine what matters — can be partially externalised into infrastructure.
 
-The current implementation composes three signals: semantic similarity, temporal decay, and mode awareness. The architecture is designed to accommodate additional signals as they become available: decision anchoring (epistemic posture), graph adjacency (structural connections via [zetl](https://codeberg.org/anuna/zetl)), and biosignal responsiveness (physiological state influencing what surfaces) through [vibe-harness](https://github.com/m3data/vibe-harness-mcp).
+The current implementation composes five signals: semantic similarity, temporal decay, mode awareness, conversation trajectory, and relevance feedback. The architecture has extension points for additional signals as they become available: decision anchoring (epistemic posture), graph adjacency (structural connections via [zetl](https://codeberg.org/anuna/zetl)), and biosignal responsiveness (physiological state, via [vibe-harness](https://github.com/m3data/vibe-harness-mcp), influencing what surfaces).
+
+The feedback loop closes the cybernetic circuit: Sense observes → auto-labels → the dashboard renders the observation → the human corrects → weights shift → Sense changes what it surfaces. The observation infrastructure is itself observable — a Baradian cut made visible.
 
 The system scaffolds the human's relevance realisation — it does not replace it. But through its responsiveness to working context, it participates in the coupling dynamic that produces relevance.
 
