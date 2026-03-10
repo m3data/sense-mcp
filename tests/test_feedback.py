@@ -95,12 +95,30 @@ class TestRelevanceWeights:
         assert weights["/noisy.md"] < 1.0
 
     def test_mixed_feedback_near_neutral(self, feedback_db):
-        for _ in range(3):
-            record_feedback(feedback_db, "q", "/mixed.md", "useful")
-            record_feedback(feedback_db, "q", "/mixed.md", "noise")
+        # Use different query texts so latest-wins gives one useful, one noise
+        for i in range(3):
+            record_feedback(feedback_db, f"q_useful_{i}", "/mixed.md", "useful")
+            record_feedback(feedback_db, f"q_noise_{i}", "/mixed.md", "noise")
         weights = load_relevance_weights(feedback_db)
-        # With equal useful and noise, weight should be ~1.0
+        # With equal useful and noise across different queries, weight ~1.0
         assert abs(weights["/mixed.md"] - 1.0) < 0.01
+
+    def test_latest_wins_correction_overrides_auto_label(self, feedback_db):
+        # Auto-label says noise for query "q1"
+        record_feedback(feedback_db, "q1", "/corrected.md", "noise", source="auto:hook")
+        weights_before = load_relevance_weights(feedback_db)
+        assert weights_before["/corrected.md"] < 1.0
+
+        # Human correction says useful for same (file_path, query_text) pair
+        record_feedback(feedback_db, "q1", "/corrected.md", "useful", source="corrected:mat")
+        weights_after = load_relevance_weights(feedback_db)
+        assert weights_after["/corrected.md"] > 1.0
+
+        # Both rows still in table (append-only audit trail)
+        count = feedback_db.execute(
+            "SELECT COUNT(*) FROM feedback WHERE file_path = '/corrected.md'"
+        ).fetchone()[0]
+        assert count == 2
 
     def test_prior_dampens_single_signal(self, feedback_db):
         record_feedback(feedback_db, "q", "/one.md", "noise")
@@ -188,6 +206,81 @@ class TestLastResults:
 # ---------------------------------------------------------------------------
 # Weight cache
 # ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# Source column and schema migration (SPEC-003)
+# ---------------------------------------------------------------------------
+
+
+class TestSourceColumn:
+    def test_source_defaults_to_manual(self, feedback_db):
+        record_feedback(feedback_db, "q", "/f.md", "useful")
+        row = feedback_db.execute(
+            "SELECT source FROM feedback WHERE file_path = '/f.md'"
+        ).fetchone()
+        assert row[0] == "manual"
+
+    def test_auto_hook_source(self, feedback_db):
+        record_feedback(feedback_db, "q", "/f.md", "useful", source="auto:hook")
+        row = feedback_db.execute(
+            "SELECT source FROM feedback WHERE file_path = '/f.md'"
+        ).fetchone()
+        assert row[0] == "auto:hook"
+
+    def test_corrected_mat_source(self, feedback_db):
+        record_feedback(feedback_db, "q", "/f.md", "noise", source="corrected:mat")
+        row = feedback_db.execute(
+            "SELECT source FROM feedback WHERE file_path = '/f.md'"
+        ).fetchone()
+        assert row[0] == "corrected:mat"
+
+    def test_stats_include_source_breakdown(self, feedback_db):
+        record_feedback(feedback_db, "q1", "/a.md", "useful", source="auto:hook")
+        record_feedback(feedback_db, "q2", "/b.md", "noise", source="auto:hook")
+        record_feedback(feedback_db, "q1", "/a.md", "noise", source="corrected:mat")
+        stats = get_feedback_stats(feedback_db)
+        assert stats["by_source"]["auto:hook"] == 2
+        assert stats["by_source"]["corrected:mat"] == 1
+        assert stats["correction_rate"] == 0.5  # 1 correction / 2 auto
+
+    def test_schema_migration_adds_source_column(self, tmp_path):
+        """Simulate a pre-SPEC-003 database without source column."""
+        db_path = tmp_path / "old.db"
+        conn = sqlite3.connect(str(db_path))
+        # Create old schema without source column
+        conn.executescript("""
+            CREATE TABLE feedback (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                query_text TEXT NOT NULL,
+                file_path TEXT NOT NULL,
+                label TEXT NOT NULL CHECK(label IN ('useful', 'noise')),
+                similarity REAL,
+                mode TEXT,
+                note TEXT,
+                created_at TEXT NOT NULL
+            );
+        """)
+        conn.execute(
+            "INSERT INTO feedback (query_text, file_path, label, created_at) "
+            "VALUES ('q', '/old.md', 'useful', '2026-01-01')"
+        )
+        conn.commit()
+
+        # Run migration
+        init_feedback_table(conn)
+
+        # Old row should have 'manual' default
+        row = conn.execute("SELECT source FROM feedback").fetchone()
+        assert row[0] == "manual"
+
+        # New inserts should work with source
+        record_feedback(conn, "q2", "/new.md", "noise", source="auto:hook")
+        row = conn.execute(
+            "SELECT source FROM feedback WHERE file_path = '/new.md'"
+        ).fetchone()
+        assert row[0] == "auto:hook"
+        conn.close()
 
 
 class TestWeightCache:

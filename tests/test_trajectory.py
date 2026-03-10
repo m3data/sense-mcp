@@ -9,7 +9,9 @@ import pytest
 
 from sense_mcp.trajectory import (
     MIN_EMBEDDINGS_FOR_CURVATURE,
+    TRAJECTORY_HISTORY_PATH,
     TrajectoryComputer,
+    _append_trajectory_history,
     _compute_local_curvatures,
     _detect_trend,
 )
@@ -260,3 +262,64 @@ class TestSessionStateTrajectory:
             assert loaded.trajectory_signal == {}
         finally:
             Path(path).unlink(missing_ok=True)
+
+
+# ---------------------------------------------------------------------------
+# Trajectory history JSONL (SPEC-003)
+# ---------------------------------------------------------------------------
+
+
+class TestTrajectoryHistory:
+    def test_append_creates_file(self, tmp_path):
+        path = tmp_path / "traj.jsonl"
+        signal = {"trend": "converging", "delta_kappa": 0.05, "turn_count": 6}
+        _append_trajectory_history(signal, path=path)
+        assert path.exists()
+        entry = json.loads(path.read_text().strip())
+        assert entry["trend"] == "converging"
+        assert abs(entry["delta_kappa"] - 0.05) < 1e-6
+        assert entry["turn_count"] == 6
+        assert "ts" in entry
+
+    def test_append_multiple_entries(self, tmp_path):
+        path = tmp_path / "traj.jsonl"
+        for trend in ["converging", "stable", "diverging"]:
+            _append_trajectory_history(
+                {"trend": trend, "delta_kappa": 0.1, "turn_count": 5},
+                path=path,
+            )
+        lines = path.read_text().strip().splitlines()
+        assert len(lines) == 3
+        assert json.loads(lines[0])["trend"] == "converging"
+        assert json.loads(lines[2])["trend"] == "diverging"
+
+    def test_compute_signal_appends_history(self, tmp_path, monkeypatch):
+        """compute_signal() should append to trajectory history JSONL."""
+        import sense_mcp.trajectory as traj_mod
+
+        history_path = tmp_path / "history.jsonl"
+        monkeypatch.setattr(traj_mod, "TRAJECTORY_HISTORY_PATH", history_path)
+
+        tc = TrajectoryComputer()
+        # Add enough embeddings for a real signal
+        for _ in range(6):
+            tc.add_embedding(np.random.randn(10))
+        signal = tc.compute_signal()
+
+        assert history_path.exists()
+        entry = json.loads(history_path.read_text().strip())
+        assert entry["trend"] == signal["trend"]
+
+    def test_insufficient_data_not_logged(self, tmp_path, monkeypatch):
+        """insufficient_data signals are not written (no meaningful signal)."""
+        import sense_mcp.trajectory as traj_mod
+
+        history_path = tmp_path / "history.jsonl"
+        monkeypatch.setattr(traj_mod, "TRAJECTORY_HISTORY_PATH", history_path)
+
+        tc = TrajectoryComputer()
+        tc.add_embedding(np.random.randn(10))  # only 1 — insufficient
+        signal = tc.compute_signal()
+
+        assert signal["trend"] == "insufficient_data"
+        assert not history_path.exists()

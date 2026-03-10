@@ -23,12 +23,15 @@ Design constraints:
 """
 
 import fcntl
+import json
+import time
 from pathlib import Path
 from typing import Optional
 
 import numpy as np
 
 TRAJECTORY_PATH = Path("/tmp/sense-trajectory-embeddings.npy")
+TRAJECTORY_HISTORY_PATH = Path("/tmp/sense-trajectory-history.jsonl")
 
 # Minimum embeddings needed for curvature computation
 # (4 points -> 3 velocities -> 2 accelerations -> 2 curvature values)
@@ -230,13 +233,45 @@ class TrajectoryComputer:
         std_kappa = float(np.std(curvatures))
         trend = _detect_trend(curvatures)
 
-        return {
+        signal = {
             "delta_kappa": mean_kappa,
             "trend": trend,
             "turn_count": n,
             "curvature_std": std_kappa,
         }
 
+        # Append to trajectory history JSONL for dashboard consumption
+        _append_trajectory_history(signal)
+
+        return signal
+
     def clear(self) -> None:
         """Reset trajectory buffer."""
         self.embeddings = []
+
+
+def _append_trajectory_history(
+    signal: dict, path: Path | None = None
+) -> None:
+    """Append a trajectory signal entry to the JSONL history file.
+
+    One line per hook invocation (~50 bytes). Dashboard reads this directly.
+    Silent on all errors — never blocks user input.
+    """
+    if path is None:
+        path = TRAJECTORY_HISTORY_PATH
+    try:
+        entry = {
+            "ts": time.time(),
+            "trend": signal.get("trend", "insufficient_data"),
+            "delta_kappa": signal.get("delta_kappa"),
+            "turn_count": signal.get("turn_count", 0),
+        }
+        with open(path, "a") as f:
+            fcntl.flock(f, fcntl.LOCK_EX)
+            try:
+                f.write(json.dumps(entry) + "\n")
+            finally:
+                fcntl.flock(f, fcntl.LOCK_UN)
+    except OSError:
+        pass

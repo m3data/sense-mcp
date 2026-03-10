@@ -7,7 +7,11 @@ Design:
   - Feedback lives in sense.db alongside chunks (longitudinal, survives reboots).
   - Weights are computed as a boost/penalty around 1.0 using a Bayesian prior
     so that a few early signals don't dominate.
-  - The hook (read-only DB) can read weights; only the MCP server writes feedback.
+  - The hook writes auto-labels (source='auto:hook'), the MCP server writes
+    manual feedback (source='manual'), and dashboard corrections use
+    source='corrected:mat'.
+  - For weight calculation, latest-wins: most recent label per (file_path,
+    query_text) pair determines the weight. All rows preserved for audit trail.
 """
 
 import sqlite3
@@ -19,7 +23,11 @@ from datetime import datetime, timezone
 # ---------------------------------------------------------------------------
 
 def init_feedback_table(conn: sqlite3.Connection) -> None:
-    """Create the feedback table if it doesn't exist. Idempotent."""
+    """Create the feedback table if it doesn't exist. Idempotent.
+
+    Handles schema migration: adds 'source' column if missing (pre-SPEC-003
+    databases lack it). Existing rows default to 'manual'.
+    """
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS feedback (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -29,11 +37,20 @@ def init_feedback_table(conn: sqlite3.Connection) -> None:
             similarity REAL,
             mode TEXT,
             note TEXT,
+            source TEXT DEFAULT 'manual',
             created_at TEXT NOT NULL
         );
         CREATE INDEX IF NOT EXISTS idx_feedback_file ON feedback(file_path);
         CREATE INDEX IF NOT EXISTS idx_feedback_label ON feedback(label);
     """)
+    # Migration: add source column if table exists but column doesn't
+    try:
+        cols = {row[1] for row in conn.execute("PRAGMA table_info(feedback)").fetchall()}
+        if "source" not in cols:
+            conn.execute("ALTER TABLE feedback ADD COLUMN source TEXT DEFAULT 'manual'")
+            conn.commit()
+    except sqlite3.OperationalError:
+        pass
     conn.commit()
 
 
@@ -49,14 +66,21 @@ def record_feedback(
     similarity: float | None = None,
     mode: str | None = None,
     note: str | None = None,
+    source: str = "manual",
 ) -> None:
-    """Insert a feedback row."""
+    """Insert a feedback row.
+
+    Source values:
+      - 'manual': explicit MCP tool call (default, backward-compatible)
+      - 'auto:hook': hook auto-label (result passed/failed filter gates)
+      - 'corrected:mat': human correction via dashboard
+    """
     if label not in ("useful", "noise"):
         raise ValueError(f"Invalid label: {label!r} (expected 'useful' or 'noise')")
     conn.execute(
         """INSERT INTO feedback
-           (query_text, file_path, label, similarity, mode, note, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+           (query_text, file_path, label, similarity, mode, note, source, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             query_text,
             file_path,
@@ -64,6 +88,7 @@ def record_feedback(
             similarity,
             mode,
             note,
+            source,
             datetime.now(timezone.utc).isoformat(),
         ),
     )
@@ -84,6 +109,11 @@ def load_relevance_weights(
     Returns {file_path: weight} for files that have feedback.
     Files absent from the dict should be treated as weight=1.0.
 
+    Latest-wins correction semantics (SPEC-003 REQ-007):
+      For each (file_path, query_text) pair, only the most recent label
+      counts. This means human corrections override auto-labels without
+      modifying the original rows (append-only audit trail).
+
     Formula: weight = 1.0 + boost_factor * (useful - noise) / (useful + noise + 2*prior)
 
     With defaults (boost=0.3, prior=2.0):
@@ -93,11 +123,20 @@ def load_relevance_weights(
       - 0 useful, 10 noise -> 1.0 + 0.3 * -10/14 = 0.79
     Conservative by design — first iteration.
     """
+    # Latest-wins: take only the most recent label per (file_path, query_text)
     rows = conn.execute("""
+        WITH latest AS (
+            SELECT file_path, label
+            FROM feedback
+            WHERE id IN (
+                SELECT MAX(id) FROM feedback
+                GROUP BY file_path, query_text
+            )
+        )
         SELECT file_path,
                SUM(CASE WHEN label = 'useful' THEN 1 ELSE 0 END) as useful,
                SUM(CASE WHEN label = 'noise' THEN 1 ELSE 0 END) as noise
-        FROM feedback
+        FROM latest
         GROUP BY file_path
     """).fetchall()
 
@@ -144,6 +183,21 @@ def get_feedback_stats(conn: sqlite3.Connection) -> dict:
             by_mode[mode_name] = {}
         by_mode[mode_name][row[1]] = row[2]
 
+    # Source breakdown (OBS-001/002)
+    by_source = {}
+    try:
+        for row in conn.execute(
+            "SELECT COALESCE(source, 'manual'), COUNT(*) FROM feedback GROUP BY COALESCE(source, 'manual')"
+        ).fetchall():
+            by_source[row[0]] = row[1]
+    except sqlite3.OperationalError:
+        pass  # source column not yet migrated
+
+    # Correction rate (OBS-002): corrections / auto-labels
+    auto_count = sum(v for k, v in by_source.items() if k.startswith("auto:"))
+    correction_count = sum(v for k, v in by_source.items() if k.startswith("corrected:"))
+    correction_rate = correction_count / auto_count if auto_count > 0 else None
+
     # Compute current weights for context
     weights = load_relevance_weights(conn)
     weight_extremes = {}
@@ -155,6 +209,8 @@ def get_feedback_stats(conn: sqlite3.Connection) -> dict:
     return {
         "total": total,
         "by_label": by_label,
+        "by_source": by_source,
+        "correction_rate": correction_rate,
         "top_noisy": top_noisy,
         "top_useful": top_useful,
         "by_mode": by_mode,

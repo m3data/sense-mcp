@@ -184,20 +184,22 @@ def main():
     # -----------------------------------------------------------------------
 
     from sense_mcp import server as sense_server
+    from sense_mcp.feedback import record_feedback
     from sense_mcp.trajectory import TrajectoryComputer
 
-    # Pre-seed a read-only DB connection to avoid WAL conflicts with the
-    # running MCP server. Must happen BEFORE any search call.
+    # Open a read-write connection for feedback auto-labelling (SPEC-003 REQ-006).
+    # SQLite WAL mode handles concurrent writers with the MCP server.
     db_path = str(sense_server.DB_PATH)
     if not os.path.exists(db_path):
         return
 
-    ro_conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
-    sense_server._db_conn = ro_conn
+    rw_conn = sqlite3.connect(db_path)
+    rw_conn.execute("PRAGMA journal_mode=WAL")
+    sense_server._db_conn = rw_conn
 
     try:
         # Check index has content
-        total = ro_conn.execute("SELECT COUNT(*) FROM chunks").fetchone()[0]
+        total = rw_conn.execute("SELECT COUNT(*) FROM chunks").fetchone()[0]
         if total == 0:
             return
 
@@ -242,7 +244,7 @@ def main():
         from sense_mcp.feedback import load_relevance_weights
         try:
             rel_weights = load_relevance_weights(
-                ro_conn,
+                rw_conn,
                 boost_factor=cfg.feedback_boost_factor,
                 prior=cfg.feedback_prior,
             )
@@ -256,10 +258,15 @@ def main():
         # Filter and deduplicate
         seen_files = set()
         filtered = []
+        noise_candidates = []  # candidates above floor but filtered out
+        noise_floor = SIMILARITY_THRESHOLD * 0.8  # REQ-006: below this = don't label
 
         for r in results:
             # Similarity threshold
             if r["similarity"] < SIMILARITY_THRESHOLD:
+                # Track as noise candidate if above the labelling floor
+                if r["similarity"] >= noise_floor:
+                    noise_candidates.append(r)
                 continue
 
             # Deduplicate by file (keep highest-scoring chunk per file)
@@ -279,6 +286,7 @@ def main():
                 r["score"] *= penalty
                 # Drop if penalty pushes below a usable score
                 if r["score"] < SIMILARITY_THRESHOLD * 0.5:
+                    noise_candidates.append(r)
                     continue
 
             # Anti-entrainment boost: when converging, prefer cross-project
@@ -300,6 +308,34 @@ def main():
             max_queries=cfg.max_queries,
         )
         state.save()
+
+        # --- Auto-labelling (SPEC-003 REQ-006) ---
+        # Results that passed all gates -> useful
+        # Results filtered out above noise floor -> noise
+        mode_str = sense_server.detect_current_mode()
+        try:
+            for r in filtered:
+                record_feedback(
+                    rw_conn,
+                    query_text=search_text,
+                    file_path=r["file_path"],
+                    label="useful",
+                    similarity=r.get("similarity"),
+                    mode=mode_str,
+                    source="auto:hook",
+                )
+            for r in noise_candidates:
+                record_feedback(
+                    rw_conn,
+                    query_text=search_text,
+                    file_path=r["file_path"],
+                    label="noise",
+                    similarity=r.get("similarity"),
+                    mode=mode_str,
+                    source="auto:hook",
+                )
+        except Exception:
+            pass  # auto-labelling is non-critical — never block
 
         if not filtered:
             return
@@ -340,7 +376,7 @@ def main():
         print("\n".join(lines))
 
     finally:
-        ro_conn.close()
+        rw_conn.close()
 
 
 if __name__ == "__main__":
