@@ -4,6 +4,7 @@ sense.db-shm
 __pycache__/
 *.pyc
 .venv/
+uv.lock
 
 # Deployment-specific config (use sense.example.toml as template)
 sense.toml
@@ -12,5 +13,8 @@ sense.toml
 ARCHITECTURE-DECISIONS.md
 DESIGN_DIRECTION_relevance-realisation.md
 
+# Workspace artifacts
+.hence/
+plan.spl
 traces/
 specs/
