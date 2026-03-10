@@ -129,15 +129,31 @@ class SessionState:
         query_text: str,
         surfaced_files: list[str],
         max_queries: int,
+        surfaced_results: list[dict] | None = None,
+        context_meta: dict | None = None,
+        trajectory: dict | None = None,
     ) -> None:
-        """Append query to history with rolling-window eviction."""
-        self.queries.append(
-            {
-                "query": query_text,
-                "ts": time.time(),
-                "surfaced_files": surfaced_files,
-            }
-        )
+        """Append query to history with rolling-window eviction.
+
+        surfaced_results: rich result data for dashboard (file_path, section,
+            snippet, source_type, score, project).
+        context_meta: contextual query construction metadata (blended, weights,
+            cap, prior queries used).
+        trajectory: trajectory signal at query time (trend, delta_kappa, turn_count).
+        Kept alongside surfaced_files for backward compat with get_circling_files().
+        """
+        entry: dict = {
+            "query": query_text,
+            "ts": time.time(),
+            "surfaced_files": surfaced_files,
+        }
+        if surfaced_results:
+            entry["surfaced_results"] = surfaced_results
+        if context_meta:
+            entry["context_meta"] = context_meta
+        if trajectory:
+            entry["trajectory"] = trajectory
+        self.queries.append(entry)
         if len(self.queries) > max_queries:
             self.queries = self.queries[-max_queries:]
 

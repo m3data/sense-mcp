@@ -45,14 +45,14 @@ class TestGracefulFallback:
         """With 0 prior queries, returns current embedding unchanged."""
         current = _deterministic_embed("test query")
         state = _make_state([])
-        result = build_contextual_query(current, state, _deterministic_embed)
+        result, meta = build_contextual_query(current, state, _deterministic_embed)
         np.testing.assert_array_equal(result, current)
 
     def test_one_prior_query_returns_current(self):
         """With 1 prior query (below MIN_CONTEXT_QUERIES), returns current unchanged."""
         current = _deterministic_embed("test query")
         state = _make_state([_make_query("prior query")])
-        result = build_contextual_query(current, state, _deterministic_embed)
+        result, meta = build_contextual_query(current, state, _deterministic_embed)
         np.testing.assert_array_equal(result, current)
 
     def test_two_prior_queries_triggers_blending(self):
@@ -62,7 +62,7 @@ class TestGracefulFallback:
             _make_query("first context"),
             _make_query("second context"),
         ])
-        result = build_contextual_query(current, state, _deterministic_embed)
+        result, meta = build_contextual_query(current, state, _deterministic_embed)
         # Should NOT be identical to current (blending happened)
         assert not np.allclose(result, current)
 
@@ -83,7 +83,7 @@ class TestCurrentMessageDominance:
             _make_query("cooperative platform matching"),
         ]
         state = _make_state(queries)
-        result = build_contextual_query(
+        result, meta = build_contextual_query(
             current, state, _deterministic_embed, max_context_weight=0.4
         )
 
@@ -101,7 +101,7 @@ class TestCurrentMessageDominance:
         current = _deterministic_embed("what was the query construct")
         queries = [_make_query(f"topic {i} about harness design") for i in range(10)]
         state = _make_state(queries)
-        result = build_contextual_query(
+        result, meta = build_contextual_query(
             current, state, _deterministic_embed,
             context_window=10, max_context_weight=0.4,
         )
@@ -137,7 +137,7 @@ class TestTopicalRelevance:
         ]
         state = _make_state(queries)
 
-        composite = build_contextual_query(
+        composite, meta = build_contextual_query(
             current, state, _fixed_embed, max_context_weight=0.4
         )
 
@@ -172,7 +172,7 @@ class TestSessionTimeout:
             _make_query("old query 3", age_seconds=7000),
         ]
         state = _make_state(queries)
-        result = build_contextual_query(
+        result, meta = build_contextual_query(
             current, state, _deterministic_embed,
             session_timeout=7200,  # 2 hours
         )
@@ -188,7 +188,7 @@ class TestSessionTimeout:
             _make_query("fresh query 2", age_seconds=50),
         ]
         state = _make_state(queries)
-        result = build_contextual_query(
+        result, meta = build_contextual_query(
             current, state, _deterministic_embed,
             session_timeout=7200,
         )
@@ -235,11 +235,11 @@ class TestTrajectoryAwareDecay:
         current = self._axis_embed(0)
         state, ctx_embed = self._make_controlled_state()
 
-        result_neutral = build_contextual_query(
+        result_neutral, _ = build_contextual_query(
             current, state, ctx_embed,
             trajectory_signal={"trend": "stable"},
         )
-        result_converging = build_contextual_query(
+        result_converging, _ = build_contextual_query(
             current, state, ctx_embed,
             trajectory_signal={"trend": "converging"},
         )
@@ -258,11 +258,11 @@ class TestTrajectoryAwareDecay:
         current = self._axis_embed(0)
         state, ctx_embed = self._make_controlled_state()
 
-        result_neutral = build_contextual_query(
+        result_neutral, _ = build_contextual_query(
             current, state, ctx_embed,
             trajectory_signal={"trend": "stable"},
         )
-        result_diverging = build_contextual_query(
+        result_diverging, _ = build_contextual_query(
             current, state, ctx_embed,
             trajectory_signal={"trend": "diverging"},
         )
@@ -290,6 +290,6 @@ class TestOutputNormalisation:
             _make_query("context 2"),
         ]
         state = _make_state(queries)
-        result = build_contextual_query(current, state, _deterministic_embed)
+        result, meta = build_contextual_query(current, state, _deterministic_embed)
         norm = np.linalg.norm(result)
         assert abs(norm - 1.0) < 1e-6, f"Output norm {norm} is not unit length"

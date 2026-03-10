@@ -63,20 +63,22 @@ def build_contextual_query(
     max_context_weight: float = 0.4,
     session_timeout: int = 7200,
     trajectory_signal: dict | None = None,
-) -> "np.ndarray":
+) -> tuple["np.ndarray", dict]:
     """Blend current message embedding with recent query context.
 
-    Returns an L2-normalised composite embedding that preserves the current
-    message as dominant (>= 1 - max_context_weight of the blend) while
-    steering toward the conversation's semantic neighbourhood.
+    Returns (embedding, metadata) where metadata describes the blend for
+    dashboard visibility. The embedding is L2-normalised and preserves the
+    current message as dominant (>= 1 - max_context_weight of the blend).
 
-    Falls back to current_emb unchanged when insufficient context exists.
+    Falls back to (current_emb, empty metadata) when insufficient context.
     """
     import numpy as np
 
+    no_context = {"blended": False, "reason": "insufficient_context"}
+
     # Gate: need enough prior queries
     if len(session_state.queries) < MIN_CONTEXT_QUERIES:
-        return current_emb
+        return current_emb, no_context
 
     # Filter to queries within session timeout
     now = time.time()
@@ -86,7 +88,7 @@ def build_contextual_query(
     ]
 
     if len(recent_queries) < MIN_CONTEXT_QUERIES:
-        return current_emb
+        return current_emb, no_context
 
     # Take last N queries
     context_queries = recent_queries[-context_window:]
@@ -98,12 +100,15 @@ def build_contextual_query(
     # Adjust the cap based on trajectory signal — this changes the TOTAL
     # amount of context influence, not just its distribution
     effective_cap = max_context_weight
+    cap_reason = None
     if trajectory_signal:
         trend = trajectory_signal.get("trend")
         if trend == "converging":
             effective_cap *= 0.5  # less total context, let current message break out
+            cap_reason = "converging: cap halved to let current message break out"
         elif trend == "diverging":
             effective_cap = min(effective_cap * 1.5, 0.6)  # more anchoring, hard ceiling at 0.6
+            cap_reason = "diverging: cap increased for more anchoring"
 
     # Cap total context weight to enforce current message dominance
     context_sum = sum(raw_weights)
@@ -124,7 +129,22 @@ def build_contextual_query(
     if norm > 0:
         composite = composite / norm
 
-    return composite
+    # Build metadata for dashboard
+    context_meta = {
+        "blended": True,
+        "effective_cap": round(effective_cap, 3),
+        "cap_reason": cap_reason,
+        "context_queries": [
+            {
+                "query": cq["query"][:120],
+                "weight": round(w, 4),
+                "ts": cq.get("ts", 0),
+            }
+            for w, cq in zip(weights, context_queries)
+        ],
+    }
+
+    return composite, context_meta
 
 
 def should_search(prompt_text: str, session_state: SessionState) -> bool:
@@ -216,7 +236,7 @@ def main():
 
         # Build contextual query by blending with recent conversation
         cfg = sense_server.cfg
-        search_emb = build_contextual_query(
+        search_emb, context_meta = build_contextual_query(
             current_emb=query_emb,
             session_state=state,
             embed_fn=sense_server.embed_query,
@@ -306,6 +326,19 @@ def main():
             search_text,
             [r["file_path"] for r in filtered],
             max_queries=cfg.max_queries,
+            surfaced_results=[
+                {
+                    "file_path": r["file_path"],
+                    "section": r.get("section", ""),
+                    "snippet": r.get("content", "")[:PREVIEW_CHARS],
+                    "source_type": r.get("source_type", ""),
+                    "score": round(r.get("score", 0.0), 2),
+                    "project": r.get("project", ""),
+                }
+                for r in filtered
+            ],
+            context_meta=context_meta,
+            trajectory=traj_signal,
         )
         state.save()
 

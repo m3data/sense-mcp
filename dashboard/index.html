@@ -8,13 +8,15 @@
   --bg: #1a1a2e;
   --bg-card: #16213e;
   --bg-hover: #1f2f50;
+  --bg-result: #111827;
   --text: #e0e0e0;
   --text-dim: #8899aa;
+  --text-faint: #556677;
   --accent: #7482f2;
   --useful: #4caf50;
   --noise: #f06070;
   --converging: #f0a050;
-  --diverging: #5090f0;
+  --diverging: #50c8c8;
   --stable: #888;
   --border: #2a3a5e;
   --font: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
@@ -32,6 +34,8 @@ body {
   margin: 0 auto;
   padding: 16px;
 }
+
+/* ---- Header ---- */
 header {
   display: flex;
   justify-content: space-between;
@@ -41,12 +45,29 @@ header {
   border-bottom: 1px solid var(--border);
 }
 header h1 { font-size: 16px; font-weight: 600; color: var(--accent); }
-header .meta { font-size: 11px; color: var(--text-dim); }
+.header-left { display: flex; align-items: center; gap: 12px; }
+.header-right { display: flex; align-items: center; gap: 12px; font-size: 11px; color: var(--text-dim); }
 
-/* Summary grid */
+/* Mode badge */
+.mode-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+.mode-badge.explore { background: #3a4a3a; color: #8cc88c; }
+.mode-badge.build { background: #2a3a5a; color: #7482f2; }
+.mode-badge.think-with { background: #4a3a3a; color: #d4a0a0; }
+.mode-badge.ship { background: #3a4a4a; color: #70c0c0; }
+.mode-badge.cool-off { background: #3a3a3a; color: #9a9a9a; }
+.mode-badge.none { background: #2a2a2a; color: #666; }
+
+/* ---- Summary ---- */
 .summary {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  grid-template-columns: 2fr 1fr 1fr;
   gap: 10px;
   margin-bottom: 16px;
 }
@@ -55,13 +76,11 @@ header .meta { font-size: 11px; color: var(--text-dim); }
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 12px;
-  text-align: center;
 }
 .stat-card .value {
-  font-size: 24px;
+  font-size: 28px;
   font-weight: 700;
   display: block;
-  margin-bottom: 2px;
 }
 .stat-card .label {
   font-size: 10px;
@@ -69,12 +88,35 @@ header .meta { font-size: 11px; color: var(--text-dim); }
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
+.stat-card.hero .value { font-size: 36px; }
+.stat-card.hero { position: relative; }
+.stat-card .sub-value { font-size: 11px; color: var(--text-dim); }
 
-/* Panels */
+/* Hit rate bar */
+.hit-rate-bar {
+  height: 6px;
+  background: #1a1a2e;
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 8px;
+}
+.hit-rate-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.5s;
+}
+
+/* Health thresholds */
+.health-good { color: var(--useful); }
+.health-warn { color: var(--converging); }
+.health-bad { color: var(--noise); }
+
+/* ---- Panels ---- */
 .panels {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
+  margin-bottom: 12px;
 }
 @media (max-width: 800px) { .panels { grid-template-columns: 1fr; } }
 
@@ -94,7 +136,7 @@ header .meta { font-size: 11px; color: var(--text-dim); }
 }
 .panel.full-width { grid-column: 1 / -1; }
 
-/* Trajectory sparkline */
+/* ---- Trajectory sparkline ---- */
 .sparkline-container {
   height: 60px;
   display: flex;
@@ -109,54 +151,119 @@ header .meta { font-size: 11px; color: var(--text-dim); }
   border-radius: 2px 2px 0 0;
   transition: height 0.3s;
 }
-
-/* Hit rate bar */
-.hit-rate-bar {
-  height: 8px;
-  background: var(--border);
-  border-radius: 4px;
-  overflow: hidden;
-  margin: 8px 0;
-}
-.hit-rate-fill {
-  height: 100%;
-  border-radius: 4px;
-  transition: width 0.5s;
+.sparkline-caption {
+  font-size: 9px;
+  color: var(--text-faint);
+  margin-top: 4px;
 }
 
-/* Query timeline */
-.query-list { max-height: 400px; overflow-y: auto; }
+/* Trend indicator */
+.trend { font-weight: 600; }
+.trend.converging { color: var(--converging); }
+.trend.diverging { color: var(--diverging); }
+.trend.stable { color: var(--stable); }
+.trend.insufficient_data { color: var(--text-dim); }
+
+/* ---- Query timeline ---- */
+.query-list { max-height: 500px; overflow-y: auto; }
 .query-item {
-  padding: 8px;
   border-bottom: 1px solid var(--border);
-  cursor: pointer;
 }
-.query-item:hover { background: var(--bg-hover); }
-.query-item .query-text {
+.query-header {
+  padding: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.query-header:hover { background: var(--bg-hover); }
+.query-expand {
+  font-size: 10px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+  width: 12px;
+  transition: transform 0.15s;
+}
+.query-item.expanded .query-expand { transform: rotate(90deg); }
+.query-body { flex: 1; min-width: 0; }
+.query-text {
   font-size: 12px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 100%;
 }
-.query-item .query-meta {
+.query-meta {
   font-size: 10px;
   color: var(--text-dim);
   margin-top: 2px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
+.query-labels {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.query-label-count {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 8px;
+}
+.qlc-useful { background: rgba(76, 175, 80, 0.2); color: var(--useful); }
+.qlc-noise { background: rgba(240, 96, 112, 0.2); color: var(--noise); }
 
-/* Result items (expanded) */
-.result-list { display: none; padding: 4px 0 4px 12px; }
+/* Result items (REQ-003 expanded) */
+.result-list { display: none; padding: 4px 0 8px 28px; }
 .query-item.expanded .result-list { display: block; }
 .result-item {
-  padding: 6px 8px;
-  margin: 4px 0;
-  background: var(--bg);
+  padding: 8px 10px;
+  margin: 3px 0;
+  background: var(--bg-result);
   border-radius: 4px;
   font-size: 11px;
 }
-.result-item .file-path { color: var(--text); font-weight: 500; }
-.result-item .result-meta { color: var(--text-dim); font-size: 10px; }
+.result-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.result-info { flex: 1; min-width: 0; }
+.result-file {
+  color: var(--text);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.result-section {
+  color: var(--text-dim);
+  font-size: 10px;
+}
+.result-snippet {
+  color: var(--text-dim);
+  font-size: 10px;
+  line-height: 1.4;
+  margin-top: 3px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 60px;
+  overflow: hidden;
+}
+.result-sim {
+  color: var(--text-dim);
+  font-size: 10px;
+  flex-shrink: 0;
+}
+.result-source-type {
+  font-size: 9px;
+  color: var(--text-faint);
+  padding: 1px 5px;
+  border-radius: 6px;
+  background: rgba(255,255,255,0.05);
+  flex-shrink: 0;
+}
 
 /* Label toggle */
 .label-btn {
@@ -168,37 +275,22 @@ header .meta { font-size: 11px; color: var(--text-dim); }
   cursor: pointer;
   border: 1px solid transparent;
   font-family: var(--font);
-  transition: all 0.2s;
+  transition: all 0.15s;
+  flex-shrink: 0;
 }
 .label-btn.useful { background: var(--useful); color: #fff; }
 .label-btn.noise { background: var(--noise); color: #fff; }
 .label-btn.unlabelled { background: var(--border); color: var(--text-dim); }
-.label-btn:hover { opacity: 0.8; }
-.label-btn.corrected { border-style: dashed; border-color: #fff; }
+.label-btn:hover { opacity: 0.8; transform: scale(1.05); }
+.label-btn.corrected { border-style: dashed; border-color: rgba(255,255,255,0.5); }
 
-/* Trend indicator */
-.trend { font-weight: 600; }
-.trend.converging { color: var(--converging); }
-.trend.diverging { color: var(--diverging); }
-.trend.stable { color: var(--stable); }
-.trend.insufficient_data { color: var(--text-dim); }
-
-/* Mode badge */
-.mode-badge {
-  display: inline-block;
-  padding: 2px 10px;
-  border-radius: 10px;
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
+.result-label-source {
+  font-size: 9px;
+  color: var(--text-faint);
+  flex-shrink: 0;
 }
-.mode-badge.explore { background: #3a4a3a; color: #8cc88c; }
-.mode-badge.build { background: #2a3a5a; color: #7482f2; }
-.mode-badge.think-with { background: #4a3a3a; color: #d4a0a0; }
-.mode-badge.ship { background: #3a4a4a; color: #70c0c0; }
-.mode-badge.cool-off { background: #3a3a3a; color: #9a9a9a; }
 
-/* Feedback stream */
+/* ---- Feedback stream ---- */
 .feedback-list { max-height: 300px; overflow-y: auto; }
 .feedback-item {
   padding: 4px 0;
@@ -207,69 +299,127 @@ header .meta { font-size: 11px; color: var(--text-dim); }
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 6px;
 }
 .feedback-item .fb-path {
   flex: 1;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  margin-right: 8px;
+  min-width: 0;
 }
+.feedback-item .fb-label {
+  font-size: 10px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.feedback-item .fb-label.useful { color: var(--useful); }
+.feedback-item .fb-label.noise { color: var(--noise); }
 .feedback-item .fb-source {
   font-size: 9px;
+  color: var(--text-faint);
+  flex-shrink: 0;
+}
+
+/* ---- Context blend ---- */
+.context-blend {
+  padding: 6px 10px 8px 28px;
+  border-bottom: 1px solid var(--border);
+  display: none;
+}
+.query-item.expanded .context-blend { display: block; }
+.context-blend-header {
+  font-size: 10px;
+  font-weight: 600;
   color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin-bottom: 4px;
+}
+.context-blend-item {
+  font-size: 10px;
+  color: var(--text-dim);
+  padding: 2px 0;
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+.context-blend-item .cq-weight {
+  font-weight: 600;
+  color: var(--accent);
+  flex-shrink: 0;
+  width: 36px;
+  text-align: right;
+}
+.context-blend-item .cq-text {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.context-blend-item .cq-time {
+  color: var(--text-faint);
+  flex-shrink: 0;
+}
+.context-blend-note {
+  font-size: 9px;
+  color: var(--text-faint);
+  margin-top: 4px;
+  font-style: italic;
+}
+.traj-badge {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 8px;
+  margin-left: 6px;
+}
+.traj-badge.converging { background: rgba(240, 160, 80, 0.2); color: var(--converging); }
+.traj-badge.diverging { background: rgba(80, 200, 200, 0.2); color: var(--diverging); }
+.traj-badge.stable { background: rgba(136, 136, 136, 0.2); color: var(--stable); }
+
+/* ---- Empty states ---- */
+.empty-state {
+  text-align: center;
+  padding: 20px 12px;
+  color: var(--text-faint);
+  font-size: 11px;
 }
 </style>
 </head>
 <body>
 <div class="container">
   <header>
-    <h1>Sense Companion</h1>
-    <div class="meta">
+    <div class="header-left">
+      <h1>Sense Companion</h1>
+      <span class="mode-badge none" id="h-mode">—</span>
+    </div>
+    <div class="header-right">
       <span id="poll-status">polling...</span>
       <span id="session-duration"></span>
     </div>
   </header>
 
-  <!-- Summary cards (REQ-001) -->
+  <!-- Summary cards — hit rate hero, queries, corrections -->
   <div class="summary">
-    <div class="stat-card">
-      <span class="value" id="s-mode">—</span>
-      <span class="label">Mode</span>
+    <div class="stat-card hero" id="hero-card">
+      <span class="value health-good" id="s-hitrate">—</span>
+      <span class="label">Hit Rate</span>
+      <div class="hit-rate-bar">
+        <div class="hit-rate-fill" id="hitrate-bar" style="width: 0%; background: var(--useful);"></div>
+      </div>
+      <div class="sub-value" id="hitrate-detail"></div>
     </div>
     <div class="stat-card">
       <span class="value" id="s-queries">0</span>
       <span class="label">Queries</span>
     </div>
     <div class="stat-card">
-      <span class="value" id="s-surfaced">0</span>
-      <span class="label">Surfaced</span>
-    </div>
-    <div class="stat-card">
-      <span class="value" id="s-hitrate">—</span>
-      <span class="label">Hit Rate</span>
-    </div>
-    <div class="stat-card">
-      <span class="value" id="s-trend">—</span>
-      <span class="label">Trajectory</span>
-    </div>
-    <div class="stat-card">
-      <span class="value" id="s-turns">0</span>
-      <span class="label">Turns</span>
-    </div>
-  </div>
-
-  <!-- Hit rate bar (REQ-004) -->
-  <div class="panel full-width" style="margin-bottom: 12px;">
-    <h2>Hit Rate</h2>
-    <div style="display: flex; align-items: center; gap: 12px;">
-      <div class="hit-rate-bar" style="flex: 1;">
-        <div class="hit-rate-fill" id="hitrate-bar" style="width: 0%; background: var(--useful);"></div>
-      </div>
-      <span id="hitrate-pct" style="font-size: 14px; font-weight: 600;">—</span>
-    </div>
-    <div style="font-size: 10px; color: var(--text-dim); margin-top: 4px;">
-      <span id="hitrate-detail"></span>
+      <span class="value" id="s-corrections">—</span>
+      <span class="label">Correction Rate</span>
+      <div class="sub-value" id="correction-detail"></div>
     </div>
   </div>
 
@@ -279,18 +429,22 @@ header .meta { font-size: 11px; color: var(--text-dim); }
       <h2>Trajectory</h2>
       <div id="traj-current" style="margin-bottom: 8px;"></div>
       <div class="sparkline-container" id="traj-sparkline"></div>
+      <div class="sparkline-caption" id="traj-caption"></div>
+      <div class="empty-state" id="traj-empty" style="display:none;">No trajectory data yet. Queries build the signal.</div>
     </div>
 
-    <!-- Feedback stream -->
+    <!-- Feedback log (read-only) -->
     <div class="panel">
       <h2>Recent Feedback</h2>
       <div class="feedback-list" id="feedback-list"></div>
+      <div class="empty-state" id="feedback-empty" style="display:none;">No feedback recorded. Auto-labelling activates on first query.</div>
     </div>
 
-    <!-- Query timeline (REQ-002) -->
+    <!-- Query timeline (REQ-002 + REQ-003) -->
     <div class="panel full-width">
       <h2>Query Timeline</h2>
       <div class="query-list" id="query-list"></div>
+      <div class="empty-state" id="query-empty" style="display:none;">No queries this session.</div>
     </div>
   </div>
 </div>
@@ -298,9 +452,11 @@ header .meta { font-size: 11px; color: var(--text-dim); }
 <script>
 const API = '';
 const POLL_MS = parseInt(new URLSearchParams(location.search).get('poll') || '3000');
-const ECO_ROOT = '';  // server returns full paths; we'll strip common prefix
 
-let lastFeedbackTs = 0;
+// Feedback lookup: keyed by "query_text||file_path" → latest row
+let feedbackMap = {};
+let currentMode = null;
+let sessionStartTs = 0;
 
 function relTime(ts) {
   if (!ts) return '';
@@ -312,13 +468,42 @@ function relTime(ts) {
 }
 
 function relPath(fp) {
-  // Strip common prefix up to EarthianLabs/
   const idx = fp.indexOf('EarthianLabs/');
   return idx >= 0 ? fp.slice(idx + 13) : fp;
 }
 
 function trendClass(trend) {
   return trend || 'insufficient_data';
+}
+
+function hitRateHealth(pct) {
+  if (pct >= 50) return 'health-good';
+  if (pct >= 25) return 'health-warn';
+  return 'health-bad';
+}
+
+function hitRateColor(pct) {
+  if (pct >= 50) return 'var(--useful)';
+  if (pct >= 25) return 'var(--converging)';
+  return 'var(--noise)';
+}
+
+// Build a lookup from feedback rows → latest label per file_path+query_text
+function buildFeedbackMap(rows) {
+  const map = {};
+  // rows are newest-first from API; we want latest-wins, so first seen = latest
+  for (const row of rows) {
+    const key = (row.query_text || '') + '||' + (row.file_path || '');
+    if (!map[key]) {
+      map[key] = row;
+    }
+  }
+  return map;
+}
+
+function lookupFeedback(queryText, filePath) {
+  const key = (queryText || '') + '||' + (filePath || '');
+  return feedbackMap[key] || null;
 }
 
 // ---- Summary (REQ-001) ----
@@ -328,83 +513,109 @@ async function updateSummary() {
     const [session, mode, stats, traj] = await Promise.all([
       fetch(API + '/api/session').then(r => r.json()),
       fetch(API + '/api/mode').then(r => r.json()),
-      fetch(API + '/api/feedback/stats').then(r => r.json()),
+      fetch(API + '/api/feedback/stats' + (sessionStartTs ? '?since=' + sessionStartTs : '')).then(r => r.json()),
       fetch(API + '/api/trajectory').then(r => r.json()),
     ]);
 
-    // Mode
+    // Mode → header
     const m = mode.mode || 'none';
-    const modeEl = document.getElementById('s-mode');
-    modeEl.textContent = m;
-    modeEl.className = 'value mode-badge ' + m;
+    currentMode = m;
+    const modeEl = document.getElementById('h-mode');
+    modeEl.textContent = m === 'none' ? '—' : m;
+    modeEl.className = 'mode-badge ' + m;
 
     // Queries
     const queries = session.queries || [];
     document.getElementById('s-queries').textContent = queries.length;
 
-    // Surfaced count
-    const surfacedCount = Object.keys(session.surfaced || {}).length;
-    document.getElementById('s-surfaced').textContent = surfacedCount;
+    // Session start
+    if (queries.length > 0 && !sessionStartTs) {
+      sessionStartTs = queries[0].ts;
+    }
 
-    // Hit rate
+    // Hit rate — hero metric
     const hr = stats.recent_hit_rate != null ? stats.recent_hit_rate : stats.hit_rate;
     if (hr != null && stats.total > 0) {
       const pct = Math.round(hr * 100);
-      document.getElementById('s-hitrate').textContent = pct + '%';
+      const hrEl = document.getElementById('s-hitrate');
+      hrEl.textContent = pct + '%';
+      hrEl.className = 'value ' + hitRateHealth(pct);
       document.getElementById('hitrate-bar').style.width = pct + '%';
-      document.getElementById('hitrate-bar').style.background =
-        pct >= 50 ? 'var(--useful)' : pct >= 25 ? 'var(--converging)' : 'var(--noise)';
-      document.getElementById('hitrate-pct').textContent = pct + '%';
+      document.getElementById('hitrate-bar').style.background = hitRateColor(pct);
       document.getElementById('hitrate-detail').textContent =
-        `${stats.useful} useful / ${stats.noise} noise (${stats.total} total)` +
-        (stats.correction_rate != null ? ` · ${Math.round(stats.correction_rate * 100)}% correction rate` : '');
+        `${stats.useful} useful / ${stats.noise} noise` +
+        (stats.total > stats.useful + stats.noise ? ` (${stats.total} total)` : '');
     } else {
       document.getElementById('s-hitrate').textContent = '—';
+      document.getElementById('s-hitrate').className = 'value';
+      document.getElementById('hitrate-detail').textContent = 'awaiting labels';
+    }
+
+    // Correction rate
+    if (stats.correction_rate != null) {
+      const cr = Math.round(stats.correction_rate * 100);
+      document.getElementById('s-corrections').textContent = cr + '%';
+      const autoCount = Object.entries(stats.by_source || {})
+        .filter(([k]) => k.startsWith('auto:')).reduce((s, [, v]) => s + v, 0);
+      const corrCount = Object.entries(stats.by_source || {})
+        .filter(([k]) => k.startsWith('corrected:')).reduce((s, [, v]) => s + v, 0);
+      document.getElementById('correction-detail').textContent = `${corrCount} corrections / ${autoCount} auto-labels`;
+    } else {
+      document.getElementById('s-corrections').textContent = '—';
+      document.getElementById('correction-detail').textContent = '';
     }
 
     // Trajectory
     const current = traj.current || session.trajectory_signal || {};
     const trend = current.trend || 'insufficient_data';
-    const trendEl = document.getElementById('s-trend');
-    trendEl.textContent = trend;
-    trendEl.className = 'value trend ' + trendClass(trend);
-
-    document.getElementById('s-turns').textContent = current.turn_count || 0;
-
-    // Trajectory detail
     const dk = current.delta_kappa;
-    document.getElementById('traj-current').innerHTML =
-      `<span class="trend ${trendClass(trend)}">${trend}</span>` +
-      (dk != null ? ` <span style="color:var(--text-dim)">dk=${dk.toFixed(4)}</span>` : '') +
-      ` <span style="color:var(--text-dim)">${current.turn_count || 0} turns</span>`;
+    const turns = current.turn_count || 0;
 
-    // Trajectory sparkline (REQ-005)
+    const trajCurrentEl = document.getElementById('traj-current');
     const history = traj.history || [];
-    const sparkEl = document.getElementById('traj-sparkline');
-    sparkEl.innerHTML = '';
-    if (history.length > 0) {
-      const maxDk = Math.max(...history.map(h => Math.abs(h.delta_kappa || 0)), 0.01);
-      for (const h of history.slice(-30)) {
-        const bar = document.createElement('div');
-        bar.className = 'spark-bar';
-        const val = Math.abs(h.delta_kappa || 0);
-        const pct = Math.min(100, (val / maxDk) * 100);
-        bar.style.height = Math.max(4, pct) + '%';
-        bar.style.background = h.trend === 'converging' ? 'var(--converging)' :
-                               h.trend === 'diverging' ? 'var(--diverging)' : 'var(--stable)';
-        bar.title = `${h.trend} dk=${(h.delta_kappa || 0).toFixed(4)} ${relTime(h.ts)}`;
-        sparkEl.appendChild(bar);
+    const trajEmpty = document.getElementById('traj-empty');
+    const trajSparkline = document.getElementById('traj-sparkline');
+
+    if (history.length === 0 && trend === 'insufficient_data') {
+      trajCurrentEl.innerHTML = '';
+      trajSparkline.innerHTML = '';
+      trajEmpty.style.display = 'block';
+      document.getElementById('traj-caption').textContent = '';
+    } else {
+      trajEmpty.style.display = 'none';
+      trajCurrentEl.innerHTML =
+        `<span class="trend ${trendClass(trend)}">${trend}</span>` +
+        (dk != null ? ` <span style="color:var(--text-dim)">dk=${dk.toFixed(4)}</span>` : '') +
+        ` <span style="color:var(--text-dim)">${turns} turns</span>`;
+
+      // Sparkline (REQ-005)
+      trajSparkline.innerHTML = '';
+      if (history.length > 0) {
+        const maxDk = Math.max(...history.map(h => Math.abs(h.delta_kappa || 0)), 0.01);
+        const slice = history.slice(-30);
+        for (const h of slice) {
+          const bar = document.createElement('div');
+          bar.className = 'spark-bar';
+          const val = Math.abs(h.delta_kappa || 0);
+          const pct = Math.min(100, (val / maxDk) * 100);
+          bar.style.height = Math.max(4, pct) + '%';
+          bar.style.background = h.trend === 'converging' ? 'var(--converging)' :
+                                 h.trend === 'diverging' ? 'var(--diverging)' : 'var(--stable)';
+          bar.title = `${h.trend} dk=${(h.delta_kappa || 0).toFixed(4)} ${relTime(h.ts)}`;
+          trajSparkline.appendChild(bar);
+        }
+        document.getElementById('traj-caption').textContent =
+          `last ${slice.length} queries · amber=converging · teal=diverging · grey=stable`;
       }
     }
 
     // Session duration
     if (queries.length > 0) {
-      const firstTs = queries[0].ts;
       document.getElementById('session-duration').textContent =
-        'Session: ' + relTime(firstTs).replace(' ago', '');
+        relTime(queries[0].ts).replace(' ago', '');
     }
 
-    // Query timeline (REQ-002)
+    // Query timeline (REQ-002 + REQ-003)
     updateQueryTimeline(queries, traj.history || []);
 
     document.getElementById('poll-status').textContent = 'live';
@@ -418,18 +629,25 @@ async function updateSummary() {
 
 function updateQueryTimeline(queries, trajHistory) {
   const el = document.getElementById('query-list');
+  const emptyEl = document.getElementById('query-empty');
 
-  // Build trajectory map by approximate timestamp
+  if (!queries || queries.length === 0) {
+    el.innerHTML = '';
+    emptyEl.style.display = 'block';
+    return;
+  }
+  emptyEl.style.display = 'none';
+
+  // Build trajectory map
   const trajMap = {};
   for (const h of trajHistory) {
     trajMap[Math.floor(h.ts)] = h;
   }
 
-  // Remember which items are expanded before rebuild
+  // Remember expanded state
   const expandedSet = new Set();
   el.querySelectorAll('.query-item.expanded').forEach(item => {
-    const ts = item.dataset.ts;
-    if (ts) expandedSet.add(ts);
+    if (item.dataset.ts) expandedSet.add(item.dataset.ts);
   });
 
   const reversed = [...queries].reverse();
@@ -445,58 +663,181 @@ function updateQueryTimeline(queries, trajHistory) {
     const truncated = qText.length > 100 ? qText.slice(0, 100) + '...' : qText;
     const files = q.surfaced_files || [];
 
-    // Find closest trajectory signal
+    // Closest trajectory signal
     const closestTs = Math.floor(q.ts);
     const trajH = trajMap[closestTs] || trajMap[closestTs - 1] || trajMap[closestTs + 1];
     const trendLabel = trajH ? `<span class="trend ${trendClass(trajH.trend)}">${trajH.trend}</span>` : '';
 
-    item.innerHTML = `
-      <div class="query-text" title="${qText.replace(/"/g, '&quot;')}">${truncated}</div>
-      <div class="query-meta">
-        ${relTime(q.ts)} · ${files.length} results ${trendLabel}
-      </div>
-      <div class="result-list" id="results-${closestTs}">
-        ${files.map(fp => `
-          <div class="result-item">
-            <div class="file-path">${relPath(fp)}</div>
+    // Use rich results if available, else fall back to file paths
+    const richResults = q.surfaced_results || files.map(fp => ({ file_path: fp }));
+
+    // Count labels for this query from feedbackMap
+    let usefulCount = 0, noiseCount = 0;
+    for (const r of richResults) {
+      const fb = lookupFeedback(qText, r.file_path);
+      if (fb) {
+        if (fb.label === 'useful') usefulCount++;
+        else if (fb.label === 'noise') noiseCount++;
+      }
+    }
+
+    const labelCounts = [];
+    if (usefulCount > 0) labelCounts.push(`<span class="query-label-count qlc-useful">${usefulCount} useful</span>`);
+    if (noiseCount > 0) labelCounts.push(`<span class="query-label-count qlc-noise">${noiseCount} noise</span>`);
+
+    // Build result list (REQ-003)
+    const resultHtml = richResults.map(r => {
+      const fp = r.file_path;
+      const fb = lookupFeedback(qText, fp);
+      const label = fb ? fb.label : 'unlabelled';
+      const source = fb ? (fb.source || 'manual') : '';
+      const sim = r.score != null ? r.score.toFixed(2) : (fb && fb.similarity != null ? fb.similarity.toFixed(2) : '');
+      const isCorrected = source.startsWith('corrected:');
+      const section = r.section ? ` > ${r.section}` : '';
+      const snippet = r.snippet || '';
+      const sourceType = r.source_type || '';
+
+      return `
+        <div class="result-item">
+          <div class="result-header">
+            <div class="result-info">
+              <div class="result-file" title="${fp}">${relPath(fp)}${section}</div>
+            </div>
+            ${sim ? `<span class="result-sim">${sim}</span>` : ''}
+            ${sourceType ? `<span class="result-source-type">${sourceType}</span>` : ''}
+            <span class="label-btn ${label} ${isCorrected ? 'corrected' : ''}"
+                  data-fp="${fp.replace(/"/g, '&quot;')}"
+                  data-qt="${qText.replace(/"/g, '&quot;')}"
+                  data-label="${label}"
+                  ${sim ? `data-sim="${sim}"` : ''}
+                  onclick="correctLabel(this)">${label}</span>
+            ${source ? `<span class="result-label-source">${source}</span>` : ''}
           </div>
-        `).join('')}
+          ${snippet ? `<div class="result-snippet">${snippet.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>` : ''}
+        </div>
+      `;
+    }).join('');
+
+    // Build context blend section
+    const cm = q.context_meta || {};
+    const qt = q.trajectory || {};
+    let contextHtml = '';
+    if (cm.blended && cm.context_queries && cm.context_queries.length > 0) {
+      const trajBadge = qt.trend && qt.trend !== 'insufficient_data'
+        ? `<span class="traj-badge ${qt.trend}">${qt.trend} dk=${(qt.delta_kappa || 0).toFixed(3)}</span>`
+        : '';
+      const capNote = cm.cap_reason ? `<div class="context-blend-note">${cm.cap_reason} (cap: ${cm.effective_cap})</div>` : '';
+      contextHtml = `
+        <div class="context-blend">
+          <div class="context-blend-header">Query construction ${trajBadge}</div>
+          ${cm.context_queries.map(cq => `
+            <div class="context-blend-item">
+              <span class="cq-weight">${cq.weight.toFixed(3)}</span>
+              <span class="cq-text" title="${cq.query.replace(/"/g, '&quot;')}">${cq.query}</span>
+              <span class="cq-time">${relTime(cq.ts)}</span>
+            </div>
+          `).join('')}
+          ${capNote}
+        </div>
+      `;
+    } else if (cm.blended === false) {
+      contextHtml = `<div class="context-blend"><div class="context-blend-note">No blending: ${cm.reason || 'insufficient context'}</div></div>`;
+    }
+
+    item.innerHTML = `
+      <div class="query-header">
+        <span class="query-expand">&#9654;</span>
+        <div class="query-body">
+          <div class="query-text" title="${qText.replace(/"/g, '&quot;')}">${truncated}</div>
+          <div class="query-meta">
+            <span>${relTime(q.ts)}</span>
+            <span>${files.length} results</span>
+            ${trendLabel}
+            <span class="query-labels">${labelCounts.join('')}</span>
+          </div>
+        </div>
       </div>
+      ${contextHtml}
+      <div class="result-list">${resultHtml || '<div class="empty-state">No results surfaced</div>'}</div>
     `;
 
-    // Toggle on header click only — stop result-list clicks from bubbling
-    const header = item.querySelector('.query-text');
-    const meta = item.querySelector('.query-meta');
-    const toggle = (e) => { e.stopPropagation(); item.classList.toggle('expanded'); };
-    header.addEventListener('click', toggle);
-    meta.addEventListener('click', toggle);
-    // Prevent clicks inside result list from collapsing
+    // Toggle expand on header click
+    const header = item.querySelector('.query-header');
+    header.addEventListener('click', () => item.classList.toggle('expanded'));
+    // Prevent result clicks from toggling
     item.querySelector('.result-list').addEventListener('click', (e) => e.stopPropagation());
+
     el.appendChild(item);
   }
 }
 
-// ---- Feedback stream ----
+// ---- Label correction (REQ-007) — in timeline ----
+
+async function correctLabel(btn) {
+  const newLabel = btn.dataset.label === 'useful' ? 'noise' : 'useful';
+  const filePath = btn.dataset.fp;
+  const queryText = btn.dataset.qt;
+  const similarity = btn.dataset.sim ? parseFloat(btn.dataset.sim) : null;
+
+  if (!queryText) {
+    console.warn('No query_text for correction — skipping');
+    return;
+  }
+
+  try {
+    const body = {
+      file_path: filePath,
+      query_text: queryText,
+      label: newLabel,
+    };
+    if (similarity != null) body.similarity = similarity;
+    if (currentMode) body.mode = currentMode;
+
+    const resp = await fetch(API + '/api/feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (resp.ok) {
+      btn.dataset.label = newLabel;
+      btn.textContent = newLabel;
+      btn.className = `label-btn ${newLabel} corrected`;
+      // Update feedback map locally for immediate consistency
+      const key = (queryText || '') + '||' + (filePath || '');
+      feedbackMap[key] = { ...feedbackMap[key], label: newLabel, source: 'corrected:mat' };
+    }
+  } catch (e) {
+    console.error('Correction error:', e);
+  }
+}
+
+// ---- Feedback stream (read-only log) ----
 
 async function updateFeedback() {
   try {
     const rows = await fetch(API + '/api/feedback').then(r => r.json());
     const el = document.getElementById('feedback-list');
-    el.innerHTML = '';
+    const emptyEl = document.getElementById('feedback-empty');
 
+    // Build global feedback map
+    feedbackMap = buildFeedbackMap(rows);
+
+    if (!rows || rows.length === 0) {
+      el.innerHTML = '';
+      emptyEl.style.display = 'block';
+      return;
+    }
+    emptyEl.style.display = 'none';
+
+    el.innerHTML = '';
     for (const row of rows.slice(0, 50)) {
       const item = document.createElement('div');
       item.className = 'feedback-item';
-
       const source = row.source || 'manual';
-      const isCorrected = source.startsWith('corrected:');
 
       item.innerHTML = `
         <span class="fb-path" title="${row.file_path}">${relPath(row.file_path)}</span>
-        <span class="label-btn ${row.label} ${isCorrected ? 'corrected' : ''}"
-              data-fp="${row.file_path}" data-qt="${row.query_text || ''}"
-              data-label="${row.label}"
-              onclick="toggleLabel(this)">${row.label}</span>
+        <span class="fb-label ${row.label}">${row.label}</span>
         <span class="fb-source">${source}</span>
       `;
       el.appendChild(item);
@@ -506,38 +847,12 @@ async function updateFeedback() {
   }
 }
 
-// ---- Label correction (REQ-007) ----
-
-async function toggleLabel(btn) {
-  const newLabel = btn.dataset.label === 'useful' ? 'noise' : 'useful';
-  try {
-    const resp = await fetch(API + '/api/feedback', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        file_path: btn.dataset.fp,
-        query_text: btn.dataset.qt,
-        label: newLabel,
-      }),
-    });
-    if (resp.ok) {
-      btn.dataset.label = newLabel;
-      btn.textContent = newLabel;
-      btn.className = `label-btn ${newLabel} corrected`;
-      // Refresh stats
-      updateSummary();
-      updateFeedback();
-    }
-  } catch (e) {
-    console.error('Correction error:', e);
-  }
-}
-
 // ---- Polling ----
 
 async function poll() {
-  await updateSummary();
+  // Feedback first so feedbackMap is ready for timeline rendering
   await updateFeedback();
+  await updateSummary();
 }
 
 poll();

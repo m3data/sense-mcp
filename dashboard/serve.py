@@ -119,41 +119,60 @@ def query_feedback(db_path: Path, since: float = 0) -> list[dict]:
         return []
 
 
-def query_feedback_stats(db_path: Path) -> dict:
-    """Aggregate feedback statistics."""
+def query_feedback_stats(db_path: Path, since_ts: float = 0) -> dict:
+    """Aggregate feedback statistics, optionally scoped to a session window."""
     try:
         conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
 
-        total = conn.execute("SELECT COUNT(*) FROM feedback").fetchone()[0]
+        # Build WHERE clause for session scoping
+        where = ""
+        params: list = []
+        if since_ts > 0:
+            from datetime import datetime, timezone
+            since_iso = datetime.fromtimestamp(since_ts, tz=timezone.utc).isoformat()
+            where = " WHERE created_at >= ?"
+            params = [since_iso]
+
+        total = conn.execute(f"SELECT COUNT(*) FROM feedback{where}", params).fetchone()[0]
         if total == 0:
             conn.close()
             return {"total": 0, "useful": 0, "noise": 0, "hit_rate": 0,
                     "by_source": {}, "correction_rate": None, "recent_hit_rate": None}
 
-        useful = conn.execute("SELECT COUNT(*) FROM feedback WHERE label='useful'").fetchone()[0]
-        noise = conn.execute("SELECT COUNT(*) FROM feedback WHERE label='noise'").fetchone()[0]
+        useful = conn.execute(
+            f"SELECT COUNT(*) FROM feedback{where.replace('WHERE', 'WHERE label=? AND') if where else ' WHERE label=?'}",
+            ["useful"] + params
+        ).fetchone()[0]
+        noise = conn.execute(
+            f"SELECT COUNT(*) FROM feedback{where.replace('WHERE', 'WHERE label=? AND') if where else ' WHERE label=?'}",
+            ["noise"] + params
+        ).fetchone()[0]
 
         # Source breakdown
         by_source = {}
         try:
             for row in conn.execute(
-                "SELECT COALESCE(source, 'manual'), COUNT(*) FROM feedback GROUP BY COALESCE(source, 'manual')"
+                f"SELECT COALESCE(source, 'manual'), COUNT(*) FROM feedback{where} GROUP BY COALESCE(source, 'manual')",
+                params
             ).fetchall():
                 by_source[row[0]] = row[1]
         except sqlite3.OperationalError:
             pass
 
-        # Recent hit rate (last 20 latest-wins labels)
-        recent_rows = conn.execute("""
-            WITH latest AS (
-                SELECT label FROM feedback
+        # Recent hit rate (last 20 latest-wins labels, session-scoped)
+        recent_rows = conn.execute(f"""
+            WITH scoped AS (
+                SELECT * FROM feedback{where}
+            ),
+            latest AS (
+                SELECT label FROM scoped
                 WHERE id IN (
-                    SELECT MAX(id) FROM feedback GROUP BY file_path, query_text
+                    SELECT MAX(id) FROM scoped GROUP BY file_path, query_text
                 )
                 ORDER BY id DESC LIMIT 20
             )
             SELECT label, COUNT(*) FROM latest GROUP BY label
-        """).fetchall()
+        """, params).fetchall()
         recent_useful = sum(c for l, c in recent_rows if l == "useful")
         recent_total = sum(c for _, c in recent_rows)
         recent_hit_rate = recent_useful / recent_total if recent_total > 0 else None
@@ -178,8 +197,10 @@ def query_feedback_stats(db_path: Path) -> dict:
 
 
 def record_correction(db_path: Path, file_path: str, query_text: str,
-                       label: str, note: str = "") -> dict:
-    """Write a human correction to the feedback table."""
+                       label: str, note: str = "",
+                       similarity: float | None = None,
+                       mode: str | None = None) -> dict:
+    """Write a human correction to the feedback table (P1-6: includes similarity/mode)."""
     if label not in ("useful", "noise"):
         return {"error": f"Invalid label: {label}"}
     try:
@@ -188,9 +209,9 @@ def record_correction(db_path: Path, file_path: str, query_text: str,
         from datetime import datetime, timezone
         conn.execute(
             """INSERT INTO feedback
-               (query_text, file_path, label, source, note, created_at)
-               VALUES (?, ?, ?, 'corrected:mat', ?, ?)""",
-            (query_text, file_path, label, note or None,
+               (query_text, file_path, label, similarity, mode, source, note, created_at)
+               VALUES (?, ?, ?, ?, ?, 'corrected:mat', ?, ?)""",
+            (query_text, file_path, label, similarity, mode, note or None,
              datetime.now(timezone.utc).isoformat())
         )
         conn.commit()
@@ -247,7 +268,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self._json_response(query_feedback(_db_path, since))
 
         elif path == "/api/feedback/stats":
-            self._json_response(query_feedback_stats(_db_path))
+            since_ts = float(params.get("since", [0])[0])
+            self._json_response(query_feedback_stats(_db_path, since_ts))
 
         elif path == "/api/mode":
             self._json_response(read_current_mode())
@@ -277,6 +299,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 query_text=body.get("query_text", ""),
                 label=body.get("label", ""),
                 note=body.get("note", ""),
+                similarity=body.get("similarity"),
+                mode=body.get("mode"),
             )
             status = 200 if "ok" in result else 400
             self._json_response(result, status)
