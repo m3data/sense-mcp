@@ -6,19 +6,21 @@
 ![Python](https://img.shields.io/badge/PYTHON-3.11+-green?style=for-the-badge&labelColor=10b981&color=047857)
 ![MCP](https://img.shields.io/badge/MCP-stdio-purple?style=for-the-badge&labelColor=7c3aed&color=5b21b6)
 
-Relevant context from your project ecosystem, injected into every AI conversation — automatically, weighted by recency, and shaped by what you're doing.
+Ambient relevance for multi-project ecosystems. Prior work from across your portfolio surfaces in every AI conversation — automatically, weighted by recency, and shaped by what you're doing.
 
 ## The problem
 
-You work across a project ecosystem. There's documentation, code, research, decisions, regulatory files, customer feedback, session traces — it's all there. But when you're in a conversation with your AI agent, none of it shows up unless you go find it and paste it in. The AI agent is capable but contextually blind to your ecosystem. Particularly if you are running multiple projects, the relevant context is a moving target. You can't predict what you'll need in advance, and you usually won't know what you needed until after the fact.
+You don't work on one project. You work across an ecosystem — research feeding publications, code shaped by decisions made three repos away, a consulting thread that traces back to notes you wrote six months ago. The relevant piece is rarely in the project you're currently looking at.
 
-Memory and RAG tools try to solve this by storing and retrieving everything. But recall is not relevance. Dumping context into a prompt without discrimination buries the useful connections under volume. And search requires you to know what you're looking for — which means it can't surface the connections you didn't know to make.
+AI coding agents are capable but contextually blind to this. Memory and RAG tools solve single-project recall. Relevance across a portfolio of projects is a different problem. Dumping context into a prompt without discrimination buries the useful cross-project connections under volume. And search requires you to know what you're looking for — which means it can't surface connections you didn't know existed.
+
+The pain is specific: you're building in one repo and the decision that matters was documented in a session trace from a different project last week. You're writing and the concept you need was explored in research notes you haven't opened in a month. The context is there. It's just never where you are.
 
 ## What Sense does
 
-Sense indexes your project ecosystem and injects relevant context into every conversation automatically. You don't search. You don't paste. Relevant prior work surfaces based on what you're talking about right now.
+Sense indexes your project portfolio and injects relevant context into every conversation automatically. You don't search. You don't paste. Prior work surfaces as you work.
 
-It runs as an [MCP](https://modelcontextprotocol.io/) server for [Claude Code](https://docs.anthropic.com/en/docs/claude-code), with a companion hook that fires on every prompt. The result: your AI partner always has peripheral awareness of the ecosystem it's working in.
+It runs as an [MCP](https://modelcontextprotocol.io/) server for [Claude Code](https://docs.anthropic.com/en/docs/claude-code), with a companion hook that fires on every prompt. The result: your AI partner has peripheral awareness of the entire portfolio it's working across, not just the repo it's sitting in.
 
 ### How it's different
 
