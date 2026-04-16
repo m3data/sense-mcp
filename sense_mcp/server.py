@@ -463,7 +463,18 @@ def search_chunks(
         })
 
     results.sort(key=lambda x: x["score"], reverse=True)
-    return results[:limit]
+
+    # Deduplicate by file — keep highest-scoring chunk per file
+    seen_files: set[str] = set()
+    deduped: list[dict] = []
+    for r in results:
+        if r["file_path"] not in seen_files:
+            seen_files.add(r["file_path"])
+            deduped.append(r)
+            if len(deduped) >= limit:
+                break
+
+    return deduped
 
 
 # ---------------------------------------------------------------------------
@@ -636,42 +647,64 @@ def search_chunks_contextual(
         fill_slots = pool_size - len(stratified)
         candidates = stratified + remaining[:max(0, fill_slots)]
 
-    if source_type:
-        for r in candidates:
-            if r["source_type"] == source_type:
-                r["score"] *= 1.2
+    # --- Additive bias model (SPEC-004 Phase 1) ---
+    # Contextual signals are summed and added with a small weight (α),
+    # bounding how much mode/session state can shift ranking relative to
+    # the base relevance score (cosine × decay × feedback weight).
+    #
+    # Signal design: each signal is normalised to roughly [-1, +1] range.
+    # α controls total contextual influence (default 0.05 = max ±5% shift
+    # on a score of 1.0, more on lower scores but still bounded).
+
+    ALPHA = 0.05  # contextual influence weight
 
     multipliers = profile["source_type_multipliers"]
+    cross_boost = profile["cross_project_boost"]
+    base_penalty = profile["already_surfaced_penalty"]
+    circling_files = session.get_circling_files(query_embedding, embed_fn=embed_query)
+
     for r in candidates:
+        bias_sum = 0.0
+
+        # Source type preference: multiplier > 1.0 = positive, < 1.0 = negative
         mult = multipliers.get(r["source_type"], 1.0)
-        r["score"] *= mult
+        type_signal = mult - 1.0  # e.g. 1.5 → +0.5, 0.6 → -0.4
+        bias_sum += type_signal
         r["mode_multiplier"] = mult
 
-    cross_boost = profile["cross_project_boost"]
-    for r in candidates:
+        # Explicit source_type filter boost (small)
+        if source_type and r["source_type"] == source_type:
+            bias_sum += 0.2
+
+        # Cross-project signal
         if project and r["project"] != project:
-            r["score"] *= cross_boost
+            cross_signal = cross_boost - 1.0  # e.g. 1.3 → +0.3
+            bias_sum += cross_signal
             r["cross_project"] = True
         else:
             r["cross_project"] = False
 
-    base_penalty = profile["already_surfaced_penalty"]
-    for r in candidates:
+        # Resurfacing signal (now uses decaying penalty, not exponential)
         penalty = session.get_surfaced_penalty(r["file_path"], base_penalty)
         if penalty < 1.0:
-            r["score"] *= penalty
+            resurface_signal = penalty - 1.0  # e.g. 0.75 → -0.25
+            bias_sum += resurface_signal
             r["resurfaced"] = True
             r["resurface_penalty"] = penalty
         else:
             r["resurfaced"] = False
 
-    circling_files = session.get_circling_files(query_embedding, embed_fn=embed_query)
-    for r in candidates:
+        # Circling signal (topic recurrence)
         if r["file_path"] in circling_files:
-            r["score"] *= 1.3
+            bias_sum += 0.3
             r["circling"] = True
         else:
             r["circling"] = False
+
+        # Apply additive bias: score = base_score + α × Σ(signals)
+        r["bias_sum"] = round(bias_sum, 4)
+        r["bias_contribution"] = round(ALPHA * bias_sum, 4)
+        r["score"] = r["score"] + ALPHA * bias_sum
 
     candidates.sort(key=lambda x: x["score"], reverse=True)
 
@@ -834,7 +867,7 @@ def sense_search(
     Args:
         query: Natural language search query.
         project: Optional project filter (e.g. 'somatic-ai-safety', 'teaching').
-        source_type: Optional type filter: trace, documentation, project_claude, reference, research, teaching, code. In flat mode (no Vibe Harness), this is a hard SQL filter — only matching types returned. In mode-aware mode, this becomes a soft 1.2x score boost — matching types are preferred but other types can still appear in divergence/serendipity slots.
+        source_type: Optional type filter: trace, mistake, documentation, project_claude, reference, research, teaching, code. In flat mode (no Vibe Harness), this is a hard SQL filter — only matching types returned. In mode-aware mode, this becomes a soft 1.2x score boost — matching types are preferred but other types can still appear in divergence/serendipity slots.
         limit: Max results to return (default 10).
         mode: Optional Vibe Harness mode override (explore, build, think-with, ship, cool-off, none). Auto-detected if omitted. Use 'none' to force flat cosine search regardless of Vibe Harness state.
     """

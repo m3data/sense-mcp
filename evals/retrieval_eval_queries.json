@@ -1,0 +1,252 @@
+{
+  "_meta": {
+    "description": "Ground-truth eval queries for Sense retrieval. Drawn from real work in the EarthianLabs ecosystem.",
+    "created": "2026-04-16",
+    "spec": "SPEC-004",
+    "usage": "Run via eval_runner.py. Each query has expected files that SHOULD surface in top-k, and files that should NOT outrank them."
+  },
+  "queries": [
+    {
+      "id": "EVAL-001",
+      "query": "PhD direction and institutional choice",
+      "mode": "think-with",
+      "description": "The original SPEC-004 diagnostic query. PhD pathway is a recurring topic across Action-Research files.",
+      "should_surface": [
+        "reference/professional.md",
+        "Action-Research/research-frame.md"
+      ],
+      "should_surface_sections": [
+        "PhD Pathway",
+        null
+      ],
+      "should_not_outrank": {
+        "comment": "These should never rank above the should_surface files for this query",
+        "files": [
+          "marking-assistant/REFACTOR_ASSESSMENT_scalar_to_vector.md"
+        ]
+      },
+      "k": 5
+    },
+    {
+      "id": "EVAL-002",
+      "query": "coherence versus entrainment in coupled systems",
+      "mode": "think-with",
+      "description": "Core research distinction. Should find the preprint, TENCON paper, and coherence model work.",
+      "should_surface": [
+        "publications/papers/cross-substrate-coupling-preprint.md",
+        "Action-Research/RESEARCH_MAPPING.md"
+      ],
+      "should_surface_sections": [
+        null,
+        "1. Research Questions Mapping"
+      ],
+      "should_not_outrank": {
+        "comment": "Conversation fragments about coherence should not outrank the primary research documents",
+        "files": []
+      },
+      "k": 5
+    },
+    {
+      "id": "EVAL-003",
+      "query": "how does the research frame connect to adaptive capacity under stress",
+      "mode": "think-with",
+      "description": "Direct hit on the research frame. Should surface foundational Action-Research documents.",
+      "should_surface": [
+        "Action-Research/research-frame.md",
+        "Action-Research/RESEARCH_MAPPING.md"
+      ],
+      "should_surface_sections": [
+        null,
+        "1. Research Questions Mapping"
+      ],
+      "should_not_outrank": {
+        "files": []
+      },
+      "k": 5
+    },
+    {
+      "id": "EVAL-004",
+      "query": "somatic sensing and embodied signals in human-AI interaction",
+      "mode": "think-with",
+      "description": "Cross-project query touching BioSense, preprint, somatic AI safety.",
+      "should_surface": [
+        "publications/papers/cross-substrate-coupling-preprint.md",
+        "Action-Research/research-frame.md"
+      ],
+      "should_surface_sections": [
+        null,
+        null
+      ],
+      "should_not_outrank": {
+        "files": []
+      },
+      "k": 5
+    },
+    {
+      "id": "EVAL-005",
+      "query": "Tauri desktop app BLE Polar H10 implementation",
+      "mode": "build",
+      "description": "Build-mode query. Should find BioSense project docs, not research papers.",
+      "should_surface": [
+        "traces/TRACE_2026-04-09_biosense-desktop-app.md"
+      ],
+      "should_surface_sections": [
+        null
+      ],
+      "should_not_outrank": {
+        "files": []
+      },
+      "k": 5
+    },
+    {
+      "id": "EVAL-006",
+      "query": "how to configure Sense MCP server and sync the corpus",
+      "mode": "build",
+      "description": "Operational build query. Should find Sense project docs and config.",
+      "should_surface": [
+        "sense-mcp/README.md"
+      ],
+      "should_surface_sections": [
+        null
+      ],
+      "should_not_outrank": {
+        "files": []
+      },
+      "k": 5
+    },
+    {
+      "id": "EVAL-007",
+      "query": "what is the chimaera and how does it relate to coupling",
+      "mode": "explore",
+      "description": "Explore-mode cross-project query. Should find chimaera specs and traces.",
+      "should_surface": [
+        "chimaera-mcp/SPEC-001-chimaera-companion.md"
+      ],
+      "should_surface_sections": [
+        null
+      ],
+      "should_not_outrank": {
+        "files": []
+      },
+      "k": 5
+    },
+    {
+      "id": "EVAL-008",
+      "query": "MBA 915 assessment design and marking calibration",
+      "mode": "build",
+      "description": "Teaching/build query. Should find teaching traces and marking assistant docs.",
+      "should_surface": [
+        "teaching/uow/MBA915/CLAUDE.md"
+      ],
+      "should_surface_sections": [
+        null
+      ],
+      "should_not_outrank": {
+        "files": []
+      },
+      "k": 5
+    },
+    {
+      "id": "EVAL-009",
+      "query": "Hugo Anuna cooperative research lab plans",
+      "mode": "think-with",
+      "description": "Specific collaborator query. Should find anuna-coop docs.",
+      "should_surface": [
+        "anuna-coop/CLAUDE.md"
+      ],
+      "should_surface_sections": [
+        null
+      ],
+      "should_not_outrank": {
+        "files": []
+      },
+      "k": 5
+    },
+    {
+      "id": "EVAL-010",
+      "query": "relevance realisation and mode-aware retrieval architecture",
+      "mode": "think-with",
+      "description": "Meta-query about Sense itself. Should find SPEC-004 and design docs.",
+      "should_surface": [
+        "sense-mcp/specs/SPEC-004-mode-aware-retrieval-calibration.md"
+      ],
+      "should_surface_sections": [
+        null
+      ],
+      "should_not_outrank": {
+        "files": []
+      },
+      "k": 5
+    },
+    {
+      "id": "EVAL-011",
+      "query": "switching forces anxiety as sensor in organisational change",
+      "mode": "think-with",
+      "description": "Cross-domain query connecting teaching observations to research. Should find the synthesis trace.",
+      "should_surface": [
+        "traces/TRACE_2026-04-11_a2-marking-and-switching-forces-synthesis.md"
+      ],
+      "should_surface_sections": [
+        null
+      ],
+      "should_not_outrank": {
+        "files": []
+      },
+      "k": 5
+    },
+    {
+      "id": "EVAL-012",
+      "query": "writing conventions and voice for blog posts",
+      "mode": "build",
+      "description": "Reference query for writing work. Should find conventions doc.",
+      "should_surface": [
+        "reference/conventions.md"
+      ],
+      "should_surface_sections": [
+        null
+      ],
+      "should_not_outrank": {
+        "files": []
+      },
+      "k": 5
+    },
+    {
+      "id": "EVAL-013",
+      "query": "PhD direction and institutional choice",
+      "mode": null,
+      "description": "EVAL-001 repeated in flat mode (no mode). Baseline comparison — same query, no mode biases.",
+      "should_surface": [
+        "Action-Research/potential-research-collaborators.md",
+        "reference/professional.md"
+      ],
+      "should_surface_sections": [
+        "Potential Collaborators at University of Wollongong",
+        "PhD Pathway"
+      ],
+      "should_not_outrank": {
+        "files": [
+          "marking-assistant/REFACTOR_ASSESSMENT_scalar_to_vector.md"
+        ]
+      },
+      "k": 5
+    },
+    {
+      "id": "EVAL-014",
+      "query": "coherence versus entrainment in coupled systems",
+      "mode": null,
+      "description": "EVAL-002 repeated in flat mode. Baseline comparison.",
+      "should_surface": [
+        "publications/papers/cross-substrate-coupling-preprint.md",
+        "Action-Research/RESEARCH_MAPPING.md"
+      ],
+      "should_surface_sections": [
+        null,
+        "1. Research Questions Mapping"
+      ],
+      "should_not_outrank": {
+        "files": []
+      },
+      "k": 5
+    }
+  ]
+}

@@ -24,19 +24,26 @@ class TestGetSurfacedPenalty:
         result = state.get_surfaced_penalty("some/unseen/file.md", base_penalty=0.75)
         assert result == 1.0
 
-    def test_returns_penalty_power_count_for_seen_file(self):
-        """Penalty compounds multiplicatively: penalty^count."""
+    def test_returns_linear_decay_for_seen_file(self):
+        """Penalty decays linearly: base - 0.05 * (count - 1)."""
         state = SessionState()
         state.surfaced["path/to/file.md"] = {"count": 2, "last_ts": 0.0}
         result = state.get_surfaced_penalty("path/to/file.md", base_penalty=0.75)
-        assert result == pytest.approx(0.75 ** 2)
+        assert result == pytest.approx(0.70)  # 0.75 - 0.05 * 1
 
-    def test_floors_at_0_05(self):
-        """Penalty never goes below 0.05 regardless of count."""
+    def test_penalty_at_count_three(self):
+        """Third surfacing: 0.75 - 0.05 * 2 = 0.65."""
+        state = SessionState()
+        state.surfaced["path/to/file.md"] = {"count": 3, "last_ts": 0.0}
+        result = state.get_surfaced_penalty("path/to/file.md", base_penalty=0.75)
+        assert result == pytest.approx(0.65)
+
+    def test_floors_at_0_50(self):
+        """Penalty never goes below 0.5 regardless of count."""
         state = SessionState()
         state.surfaced["path/to/file.md"] = {"count": 100, "last_ts": 0.0}
         result = state.get_surfaced_penalty("path/to/file.md", base_penalty=0.75)
-        assert result == pytest.approx(0.05)
+        assert result == pytest.approx(0.50)
 
 
 class TestGetCirclingFiles:

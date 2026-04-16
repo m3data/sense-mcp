@@ -162,11 +162,29 @@ class SessionState:
     # -----------------------------------------------------------------------
 
     def get_surfaced_penalty(self, file_path: str, base_penalty: float) -> float:
-        """Return base_penalty^count, floored at 0.05. Returns 1.0 if unseen."""
+        """Return a decaying penalty based on surfacing count.
+
+        Uses a linear penalty capped at a floor, replacing the old exponential
+        model (base_penalty^count) which compounded destructively over long
+        sessions. See SPEC-004 for the diagnostic.
+
+        Penalty = max(base_penalty - 0.05 * (count - 1), 0.5)
+
+        Examples with base_penalty=0.75:
+          1× surfaced: 0.75 (25% reduction)
+          2× surfaced: 0.70 (30%)
+          3× surfaced: 0.65 (35%)
+          6× surfaced: 0.50 (50% floor — never worse)
+
+        Returns 1.0 if unseen.
+        """
         entry = self.surfaced.get(file_path)
         if not entry:
             return 1.0
-        return max(base_penalty ** entry["count"], 0.05)
+        count = entry["count"]
+        # Linear decay from base_penalty, floored at 0.5
+        penalty = base_penalty - 0.05 * (count - 1)
+        return max(penalty, 0.5)
 
     def get_circling_files(
         self,

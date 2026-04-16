@@ -295,24 +295,30 @@ def main():
                 continue
             seen_files.add(fp)
 
-            # Apply relevance feedback weight
+            # Apply relevance feedback weight (still multiplicative — this is
+            # a learned signal about the file itself, not a contextual bias)
             rel_w = rel_weights.get(fp, 1.0)
             if rel_w != 1.0:
                 r["score"] *= rel_w
 
-            # De-weight previously surfaced files using count-based penalty
+            # Additive contextual bias (aligned with server's SPEC-004 model)
+            HOOK_ALPHA = 0.05
+            bias_sum = 0.0
+
+            # Surfacing penalty (now linear decay, not exponential)
             penalty = state.get_surfaced_penalty(fp, SURFACED_PENALTY)
             if penalty < 1.0:
-                r["score"] *= penalty
-                # Drop if penalty pushes below a usable score
+                bias_sum += (penalty - 1.0)  # e.g. 0.75 → -0.25
+                # Drop if score is already below threshold even before bias
                 if r["score"] < SIMILARITY_THRESHOLD * 0.5:
                     noise_candidates.append(r)
                     continue
 
-            # Anti-entrainment boost: when converging, prefer cross-project
-            # and divergent source types to break the convergence trap
+            # Anti-entrainment: when converging, prefer cross-project
             if is_converging and r.get("cross_project"):
-                r["score"] *= 1.3
+                bias_sum += 0.3
+
+            r["score"] += HOOK_ALPHA * bias_sum
 
             filtered.append(r)
             if len(filtered) >= MAX_RESULTS:
