@@ -1,7 +1,7 @@
 # Sense
 
 ![Repo Status](https://img.shields.io/badge/REPO_STATUS-Active_Research-blue?style=for-the-badge&labelColor=8b5e3c&color=e5dac1)
-![Version](https://img.shields.io/badge/VERSION-0.4.0-blue?style=for-the-badge&labelColor=3b82f6&color=1e40af)
+![Version](https://img.shields.io/badge/VERSION-0.4.1-blue?style=for-the-badge&labelColor=3b82f6&color=1e40af)
 ![License](https://img.shields.io/badge/LICENSE-Apache_2.0-green?style=for-the-badge&labelColor=10b981&color=047857)
 ![Python](https://img.shields.io/badge/PYTHON-3.11+-green?style=for-the-badge&labelColor=10b981&color=047857)
 ![MCP](https://img.shields.io/badge/MCP-stdio-purple?style=for-the-badge&labelColor=7c3aed&color=5b21b6)
@@ -119,10 +119,13 @@ The dashboard reads existing data stores (sense.db, session state, trajectory hi
 
 - **Hit rate** — session-scoped relevance success as a hero metric, colour-coded by health
 - **Query timeline** — every hook-fired query with expandable results showing file path, section, similarity score, source type, and label
-- **Trajectory signal** — current semantic trajectory (converging/diverging/stable) with delta-kappa values
+- **Bias breakdown** — per-result ranking mechanics: net bias contribution (positive/negative), and signal badges showing which ranking signals are active (resurfacing penalty, topic circling, cross-project boost, mode weight). Hover any element for a plain-language explanation of what it means
+- **Trajectory signal** — current semantic drift (converging/diverging/stable) with delta-kappa values
 - **Feedback stream** — chronological log of auto-labels and human corrections
 
 Click any result label to toggle it between useful and noise. Corrections write back to the feedback table as `corrected:<user>` entries and shift retrieval weights from the next query.
+
+The bias breakdown makes the ranking mechanics observable — you can see *why* a result ranked where it did, not just *that* it did. This is a precondition for sensing when the retrieval system is entrained (phase-locked on its own diversity criteria) versus coherent (genuinely surfacing what matters).
 
 If using the Claude Code session hooks, the dashboard auto-starts when a session opens and stops when it closes.
 

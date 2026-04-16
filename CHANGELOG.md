@@ -2,6 +2,22 @@
 
 All notable changes to Sense are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.4.1] - 2026-04-16
+
+### Added
+
+- **Bias breakdown in Companion dashboard** — each result now shows net bias contribution (positive/negative) and active signal badges: `seen` (resurfacing penalty with value), `circling` (topic recurrence), `x-proj` (cross-project), and mode weight multiplier.
+- **Educational tooltips** — hover any score, source type, signal badge, or bias value for a plain-language explanation of what it means and how it affects ranking.
+- **Signal legend** — inline guide above the query timeline anchors badge meanings without requiring hover.
+- **Bias data pipeline** — `format_surfaced_result()` and `_extract_bias_fields()` shared helpers in `session.py` ensure both server and hook paths write consistent bias fields to session state. Previously, bias signals were computed during ranking but discarded before reaching the dashboard.
+
+### Changed
+
+- Signal badge labels: `resurf` → `seen`, `cross` → `x-proj` — more self-explaining at a glance.
+- Trajectory label: `dk=` → `drift:` — lower barrier for new users, with delta-kappa explanation on hover.
+- Feedback empty state copy now tells users what they can do, not what the system does internally.
+- `__init__.py` version synced (was stuck at 0.1.1 since package restructure).
+
 ## [0.4.0] - 2026-04-16
 
 ### Changed
