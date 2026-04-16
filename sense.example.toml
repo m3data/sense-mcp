@@ -49,6 +49,8 @@ trace = 30          # Session traces, dev updates
 teaching = 60       # Course materials
 documentation = 90  # General docs
 code = 90           # Source code
+# Types NOT listed here are evergreen (no decay):
+#   project_claude, reference, research, mistake
 
 # --- Session Tracking ---
 
@@ -59,6 +61,17 @@ max_queries = 50     # Query history for circling detection
 # --- Mode-Aware Retrieval ---
 # Integrates with Vibe Harness (https://vibe-harness.xyz)
 # If not using Vibe Harness, this section is ignored.
+#
+# Mode signals use an additive bias model: source_type_multipliers and
+# cross_project_boost are converted to signals (value - 1.0), summed with
+# resurfacing and circling signals, then applied as alpha * sum (alpha=0.05).
+# This bounds how much mode can shift ranking — it reorders near-ties but
+# can't bury a highly relevant result behind an irrelevant one.
+#
+# Diversity slots adapt: when top results cluster in high similarity,
+# confirmation expands at the expense of divergence/serendipity.
+# Resurfacing penalty is trajectory-aware: halved during divergence
+# (recurrence = anchoring), full during convergence (recurrence = circling).
 
 [mode]
 history_path = "~/.vibe-harness/mode-history.jsonl"
@@ -69,31 +82,31 @@ narrow = [7, 2, 1]
 suppress = [3, 0, 0]
 
 [mode.profiles.explore]
-source_type_multipliers = { code = 0.7, research = 1.3, documentation = 1.0, trace = 1.0, teaching = 1.0, project_claude = 1.0, reference = 1.0 }
+source_type_multipliers = { code = 0.7, research = 1.3, documentation = 1.0, trace = 1.0, teaching = 1.0, project_claude = 1.0, reference = 1.0, mistake = 1.3 }
 cross_project_boost = 1.4
 already_surfaced_penalty = 0.75
 diversity_profile = "wide"
 
 [mode.profiles.build]
-source_type_multipliers = { code = 1.5, research = 0.7, documentation = 1.3, trace = 1.0, teaching = 0.8, project_claude = 1.2, reference = 1.0 }
+source_type_multipliers = { code = 1.5, research = 0.7, documentation = 1.3, trace = 1.0, teaching = 0.8, project_claude = 1.2, reference = 1.0, mistake = 1.6 }
 cross_project_boost = 0.8
 already_surfaced_penalty = 0.80
 diversity_profile = "narrow"
 
 [mode.profiles.think-with]
-source_type_multipliers = { code = 0.6, research = 1.5, documentation = 1.0, trace = 1.0, teaching = 1.1, project_claude = 1.0, reference = 1.2 }
+source_type_multipliers = { code = 0.6, research = 1.5, documentation = 1.0, trace = 1.0, teaching = 1.1, project_claude = 1.0, reference = 1.2, mistake = 1.2 }
 cross_project_boost = 1.3
 already_surfaced_penalty = 0.75
 diversity_profile = "wide"
 
 [mode.profiles.ship]
-source_type_multipliers = { code = 1.4, research = 0.5, documentation = 1.2, trace = 1.0, teaching = 0.6, project_claude = 1.1, reference = 1.0 }
+source_type_multipliers = { code = 1.4, research = 0.5, documentation = 1.2, trace = 1.0, teaching = 0.6, project_claude = 1.1, reference = 1.0, mistake = 1.8 }
 cross_project_boost = 0.7
 already_surfaced_penalty = 0.85
 diversity_profile = "narrow"
 
 [mode.profiles.cool-off]
-source_type_multipliers = { code = 0.2, research = 0.5, documentation = 0.3, trace = 0.3, teaching = 0.4, project_claude = 0.3, reference = 0.5 }
+source_type_multipliers = { code = 0.2, research = 0.5, documentation = 0.3, trace = 0.3, teaching = 0.4, project_claude = 0.3, reference = 0.5, mistake = 0.5 }
 cross_project_boost = 1.0
 already_surfaced_penalty = 0.65
 diversity_profile = "suppress"
@@ -120,6 +133,27 @@ boost_factor = 0.3       # Weight multiplier range for feedback adjustments
 prior = 2.0              # Bayesian prior — higher = more labels needed to shift weights
 weight_cache_ttl = 60    # Seconds before recalculating weights from feedback table
 
+# --- Epistemic Weight ---
+# A prior on content importance. Foundational documents get higher standing
+# in search results regardless of query or mode. Applied at search time
+# alongside cosine similarity and temporal decay.
+#
+# Uses the same matcher syntax as classification rules. First match wins.
+# Default weight is 1.0 (no boost).
+
+[epistemic_weight]
+default = 1.0
+
+# Example: boost a research directory
+# [[epistemic_weight.rules]]
+# weight = 1.3
+# path_segment = "research"
+
+# Example: boost primary publications
+# [[epistemic_weight.rules]]
+# weight = 1.2
+# path_contains = "publications/papers/"
+
 # --- Classification Rules ---
 # Rules are evaluated in order. First match wins.
 # Each rule maps files to a source_type used for decay and mode scoring.
@@ -135,6 +169,12 @@ weight_cache_ttl = 60    # Seconds before recalculating weights from feedback ta
 
 [classification]
 default = "documentation"
+
+# Mistakes before traces — MISTAKE_* files are evergreen, boosted in build/ship
+[[classification.rules]]
+type = "mistake"
+filename = "^MISTAKE_"
+case_insensitive = true
 
 [[classification.rules]]
 type = "trace"

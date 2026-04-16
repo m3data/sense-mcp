@@ -1,7 +1,7 @@
 # Sense
 
 ![Repo Status](https://img.shields.io/badge/REPO_STATUS-Active_Research-blue?style=for-the-badge&labelColor=8b5e3c&color=e5dac1)
-![Version](https://img.shields.io/badge/VERSION-0.3.0-blue?style=for-the-badge&labelColor=3b82f6&color=1e40af)
+![Version](https://img.shields.io/badge/VERSION-0.4.0-blue?style=for-the-badge&labelColor=3b82f6&color=1e40af)
 ![License](https://img.shields.io/badge/LICENSE-Apache_2.0-green?style=for-the-badge&labelColor=10b981&color=047857)
 ![Python](https://img.shields.io/badge/PYTHON-3.11+-green?style=for-the-badge&labelColor=10b981&color=047857)
 ![MCP](https://img.shields.io/badge/MCP-stdio-purple?style=for-the-badge&labelColor=7c3aed&color=5b21b6)
@@ -32,7 +32,7 @@ It runs as an [MCP](https://modelcontextprotocol.io/) server for [Claude Code](h
 
 When paired with [Vibe Harness](https://github.com/m3data/vibe-harness-mcp), what surfaces also changes based on what you're doing. Exploring widens the aperture — cross-project connections, unexpected adjacencies. Building narrows it to code and documentation in the current project. The same corpus looks different depending on your working mode.
 
-**Source-classified, diversity-structured.** Files are classified into types (traces, code, research, documentation, reference, research etc), each with distinct decay rates that can be set and mode weightings. Results are structured into confirmation slots (highest relevance), divergence slots (what challenges the current frame), and serendipity slots (from projects you weren't looking at). The candidate pool uses stratified sampling to guarantee representation across source types, so minority types can surface when mode multipliers promote them. The goal is productive connections, not just the nearest match.
+**Source-classified, diversity-structured.** Files are classified into types (traces, code, research, documentation, reference, etc), each with distinct decay rates and mode dispositions. Foundational documents can be given epistemic weight — a prior on content importance that lifts research frames and primary publications above high-volume ephemeral content regardless of query or mode. Results are structured into confirmation slots (highest relevance), divergence slots (what challenges the current frame), and serendipity slots (from projects you weren't looking at). Slot allocation is adaptive: when top results cluster tightly in relevance, confirmation expands and diversity shrinks; when results are spread, diversity earns its full allocation. The goal is productive connections, not just the nearest match.
 
 **Learns from feedback.** Sense auto-labels every result it surfaces (useful or noise) and tracks human corrections. Labels feed back into retrieval weights through a Bayesian prior — files that consistently prove useful surface more readily, persistent noise gets suppressed. The feedback store is append-only with latest-wins semantics for weight calculation, so the full correction history is available as training data.
 
@@ -222,6 +222,10 @@ When paired with [Vibe Harness](https://github.com/m3data/vibe-harness-mcp), sea
 | **think-with** | Research + reference, wide diversity, unexpected adjacencies |
 | **ship** | Code + docs, narrow, high-confidence results |
 | **cool-off** | Suppressed surfacing, minimal interruption |
+
+Mode signals use an **additive bias model**: contextual preferences (source type, cross-project, resurfacing history, topic recurrence) are summed and applied as a bounded adjustment to the base relevance score. This ensures mode can reorder near-ties but never bury a highly relevant result behind an irrelevant one — the failure mode that multiplicative approaches produce over long sessions.
+
+The resurfacing penalty is **trajectory-aware**: when the conversation is diverging, recurring content is treated as coherent anchoring (penalty halved); when converging, it's treated as circling (penalty applied normally). Anti-entrainment widens diversity for narrow modes during convergence, and shifts already-wide modes toward more serendipity.
 
 Mode profiles are fully configurable in `sense.toml` under `[mode.profiles.*]`.
 
