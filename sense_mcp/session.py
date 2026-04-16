@@ -23,6 +23,36 @@ from typing import Callable
 STATE_PATH = "/tmp/sense-session-state.json"
 
 
+def _extract_bias_fields(r: dict) -> dict:
+    """Extract the bias breakdown fields from a result dict."""
+    return {
+        "score": round(r.get("score", 0.0), 4),
+        "bias_sum": r.get("bias_sum", 0.0),
+        "bias_contribution": r.get("bias_contribution", 0.0),
+        "mode_multiplier": r.get("mode_multiplier", 1.0),
+        "resurfaced": r.get("resurfaced", False),
+        "resurface_penalty": r.get("resurface_penalty"),
+        "circling": r.get("circling", False),
+        "cross_project": r.get("cross_project", False),
+    }
+
+
+def format_surfaced_result(r: dict, snippet_len: int = 200) -> dict:
+    """Build a serialisable result dict for session state and dashboard.
+
+    Shared by server.py and hook.py to keep the surfaced_results schema
+    consistent across both search paths.
+    """
+    return {
+        "file_path": r["file_path"],
+        "section": r.get("section", ""),
+        "snippet": r.get("content", "")[:snippet_len],
+        "source_type": r.get("source_type", ""),
+        "project": r.get("project", ""),
+        **_extract_bias_fields(r),
+    }
+
+
 @dataclass
 class SessionState:
     """Serialisable session state for ambient relevance tracking.
@@ -120,6 +150,7 @@ class SessionState:
                 "file_path": r["file_path"],
                 "query": query_text,
                 "similarity": r.get("similarity", 0.0),
+                **_extract_bias_fields(r),
             }
             for r in results[:cap]
         ]

@@ -21,7 +21,7 @@ import sys
 import time
 from pathlib import Path
 
-from sense_mcp.session import SessionState
+from sense_mcp.session import SessionState, format_surfaced_result
 
 # ---------------------------------------------------------------------------
 # Gate conditions
@@ -318,6 +318,11 @@ def main():
             if is_converging and r.get("cross_project"):
                 bias_sum += 0.3
 
+            r["bias_sum"] = round(bias_sum, 4)
+            r["bias_contribution"] = round(HOOK_ALPHA * bias_sum, 4)
+            r["resurfaced"] = penalty < 1.0
+            r["resurface_penalty"] = penalty if penalty < 1.0 else None
+            r["circling"] = False
             r["score"] += HOOK_ALPHA * bias_sum
 
             filtered.append(r)
@@ -333,14 +338,7 @@ def main():
             [r["file_path"] for r in filtered],
             max_queries=cfg.max_queries,
             surfaced_results=[
-                {
-                    "file_path": r["file_path"],
-                    "section": r.get("section", ""),
-                    "snippet": r.get("content", "")[:PREVIEW_CHARS],
-                    "source_type": r.get("source_type", ""),
-                    "score": round(r.get("score", 0.0), 2),
-                    "project": r.get("project", ""),
-                }
+                format_surfaced_result(r, snippet_len=PREVIEW_CHARS)
                 for r in filtered
             ],
             context_meta=context_meta,

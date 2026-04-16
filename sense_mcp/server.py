@@ -26,7 +26,7 @@ from openai import OpenAI
 
 from .config import get_config
 from .feedback import init_feedback_table, load_relevance_weights, record_feedback, get_feedback_stats
-from .session import SessionState
+from .session import SessionState, format_surfaced_result
 from .trajectory import TrajectoryComputer
 
 # ---------------------------------------------------------------------------
@@ -771,7 +771,13 @@ def search_chunks_contextual(
 
     surfaced_files = [r["file_path"] for r in results]
     session.record_surfaced(results, cfg.surfaced_cap)
-    session.record_query(query_text, surfaced_files, cfg.max_queries)
+    session.record_query(
+        query_text,
+        surfaced_files,
+        cfg.max_queries,
+        surfaced_results=[format_surfaced_result(r) for r in results],
+        trajectory=traj_signal,
+    )
     session.record_last_results(results, query_text)
     session.save()
 
