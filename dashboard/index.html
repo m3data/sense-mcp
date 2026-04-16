@@ -419,6 +419,15 @@ header h1 { font-size: 14px; font-weight: 400; color: var(--text-dim); text-tran
 ::-webkit-scrollbar-thumb { background: var(--bg-hover); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-faint); }
 
+/* ---- Signal legend ---- */
+.signal-legend {
+  font-size: 9px;
+  color: var(--text-faint);
+  margin-bottom: 8px;
+  letter-spacing: 0.2px;
+}
+.signal-legend em { font-style: normal; color: var(--text-dim); }
+
 /* ---- Empty states ---- */
 .empty-state {
   text-align: center;
@@ -476,12 +485,13 @@ header h1 { font-size: 14px; font-weight: 400; color: var(--text-dim); text-tran
     <div class="panel">
       <h2>Recent Feedback</h2>
       <div class="feedback-list" id="feedback-list"></div>
-      <div class="empty-state" id="feedback-empty" style="display:none;">No feedback recorded. Auto-labelling activates on first query.</div>
+      <div class="empty-state" id="feedback-empty" style="display:none;">Labels appear as queries run. You can override any auto-label in the timeline below.</div>
     </div>
 
     <!-- Query timeline (REQ-002 + REQ-003) -->
     <div class="panel full-width">
       <h2>Query Timeline</h2>
+      <div class="signal-legend">seen = appeared before · circling = topic repeating · x-proj = cross-project · <em>N</em>x = mode weight</div>
       <div class="query-list" id="query-list"></div>
       <div class="empty-state" id="query-empty" style="display:none;">No queries this session.</div>
     </div>
@@ -628,7 +638,7 @@ async function updateSummary() {
       trajEmpty.style.display = 'none';
       trajCurrentEl.innerHTML =
         `<span class="trend ${trendClass(trend)}">${trend}</span>` +
-        (dk != null ? ` <span style="color:var(--text-dim)">dk=${dk.toFixed(4)}</span>` : '') +
+        (dk != null ? ` <span style="color:var(--text-dim)" title="Delta-kappa: semantic distance between recent queries. Higher = more divergent exploration, lower = converging on a topic.">drift: ${dk.toFixed(4)}</span>` : '') +
         ` <span style="color:var(--text-dim)">${turns} turns</span>`;
 
       // Sparkline (REQ-005)
@@ -644,7 +654,7 @@ async function updateSummary() {
           bar.style.height = Math.max(4, pct) + '%';
           bar.style.background = h.trend === 'converging' ? 'var(--converging)' :
                                  h.trend === 'diverging' ? 'var(--diverging)' : 'var(--stable)';
-          bar.title = `${h.trend} dk=${(h.delta_kappa || 0).toFixed(4)} ${relTime(h.ts)}`;
+          bar.title = `${h.trend} drift: ${(h.delta_kappa || 0).toFixed(4)} ${relTime(h.ts)}`;
           trajSparkline.appendChild(bar);
         }
         document.getElementById('traj-caption').textContent =
@@ -739,6 +749,18 @@ function updateQueryTimeline(queries, trajHistory) {
       const section = r.section ? ` > ${r.section}` : '';
       const snippet = r.snippet || '';
       const sourceType = r.source_type || '';
+      const scoreTip = 'Final ranking score after semantic similarity + bias adjustments. Higher = more relevant to your query in the current working context.';
+      const sourceTypeTips = {
+        trace: 'Trace: a session record capturing decisions, findings, and residue from a working session.',
+        conversation: 'Conversation: a raw conversation log between human and AI.',
+        documentation: 'Documentation: project docs, READMEs, and reference material. Decays after 90 days.',
+        research: 'Research: academic papers, research notes, and analysis. Evergreen — no temporal decay.',
+        teaching: 'Teaching: course materials, session guides, and student-facing content. Decays after 60 days.',
+        code: 'Code: source files indexed for semantic search.',
+        reference: 'Reference: standing reference material. Evergreen — no temporal decay.',
+        project_claude: 'Project CLAUDE.md: a project\'s root instruction file. Evergreen — no temporal decay.',
+      };
+      const sourceTypeTip = sourceTypeTips[sourceType] || `Content type: ${sourceType}. Affects how temporal decay and mode-aware ranking are applied.`;
 
       // Bias breakdown signals
       const hasBias = r.bias_sum != null && r.bias_sum !== 0;
@@ -746,21 +768,31 @@ function updateQueryTimeline(queries, trajHistory) {
       const biasSign = biasContrib >= 0 ? '+' : '';
       const biasClass = biasContrib > 0 ? 'bias-pos' : biasContrib < 0 ? 'bias-neg' : 'bias-zero';
 
-      // Active signal badges
+      // Active signal badges with educational tooltips
       const signals = [];
       if (r.resurfaced) {
-        const pen = r.resurface_penalty != null ? ` ${r.resurface_penalty.toFixed(2)}` : '';
-        signals.push(`<span class="signal-badge signal-resurface" title="Resurfacing penalty${pen}">resurf${pen}</span>`);
+        const pen = r.resurface_penalty != null ? r.resurface_penalty.toFixed(2) : '';
+        const resurfTip = `Resurfaced: this result appeared before in this session. Penalty ${pen} reduces its ranking to make room for fresh content. The more times surfaced, the stronger the penalty.`;
+        signals.push(`<span class="signal-badge signal-resurface" title="${resurfTip}">seen ${pen}</span>`);
       }
-      if (r.circling) signals.push('<span class="signal-badge signal-circling" title="Topic recurrence detected">circling</span>');
-      if (r.cross_project) signals.push('<span class="signal-badge signal-cross" title="Cross-project signal">cross</span>');
+      if (r.circling) {
+        const circlingTip = 'Circling: this topic keeps recurring across different queries in the session — a possible signal of something worth deeper attention or a pattern forming.';
+        signals.push(`<span class="signal-badge signal-circling" title="${circlingTip}">circling</span>`);
+      }
+      if (r.cross_project) {
+        const crossTip = 'Cross-project: this result comes from a different project than your primary query context. Cross-project signals surface unexpected connections across the ecosystem.';
+        signals.push(`<span class="signal-badge signal-cross" title="${crossTip}">x-proj</span>`);
+      }
       if (r.mode_multiplier != null && r.mode_multiplier !== 1.0) {
-        signals.push(`<span class="signal-badge signal-mode" title="Mode type multiplier">${r.mode_multiplier.toFixed(1)}x</span>`);
+        const dir = r.mode_multiplier > 1.0 ? 'boosted' : 'reduced';
+        const modeTip = `Mode weight: this content type is ${dir} in ${currentMode || 'current'} mode (${r.mode_multiplier.toFixed(1)}×). Each working mode prioritises different content types — e.g. research content ranks higher in explore mode.`;
+        signals.push(`<span class="signal-badge signal-mode" title="${modeTip}">${r.mode_multiplier.toFixed(1)}x</span>`);
       }
 
+      const biasTip = `Net ranking adjustment: ${biasSign}${biasContrib.toFixed(4)} from mode-awareness, resurfacing, and cross-project signals combined (raw bias sum: ${(r.bias_sum || 0).toFixed(4)}, applied at 5% strength). Positive = boosted up the ranking. Negative = demoted.`;
       const biasHtml = hasBias || signals.length > 0
         ? `<div class="result-bias">
-             ${hasBias ? `<span class="bias-value ${biasClass}" title="Bias contribution: ${biasSign}${biasContrib.toFixed(4)} (sum: ${r.bias_sum.toFixed(4)}, alpha: 0.05)">${biasSign}${biasContrib.toFixed(4)}</span>` : ''}
+             ${hasBias ? `<span class="bias-value ${biasClass}" title="${biasTip}">${biasSign}${biasContrib.toFixed(4)}</span>` : ''}
              ${signals.join('')}
            </div>`
         : '';
@@ -771,8 +803,8 @@ function updateQueryTimeline(queries, trajHistory) {
             <div class="result-info">
               <div class="result-file" title="${fp}">${relPath(fp)}${section}</div>
             </div>
-            ${sim ? `<span class="result-sim">${sim}</span>` : ''}
-            ${sourceType ? `<span class="result-source-type">${sourceType}</span>` : ''}
+            ${sim ? `<span class="result-sim" title="${scoreTip}">${sim}</span>` : ''}
+            ${sourceType ? `<span class="result-source-type" title="${sourceTypeTip}">${sourceType}</span>` : ''}
             <span class="label-btn ${label} ${isCorrected ? 'corrected' : ''}"
                   data-fp="${fp.replace(/"/g, '&quot;')}"
                   data-qt="${qText.replace(/"/g, '&quot;')}"
@@ -793,7 +825,7 @@ function updateQueryTimeline(queries, trajHistory) {
     let contextHtml = '';
     if (cm.blended && cm.context_queries && cm.context_queries.length > 0) {
       const trajBadge = qt.trend && qt.trend !== 'insufficient_data'
-        ? `<span class="traj-badge ${qt.trend}">${qt.trend} dk=${(qt.delta_kappa || 0).toFixed(3)}</span>`
+        ? `<span class="traj-badge ${qt.trend}">${qt.trend} drift: ${(qt.delta_kappa || 0).toFixed(3)}</span>`
         : '';
       const capNote = cm.cap_reason ? `<div class="context-blend-note">${cm.cap_reason} (cap: ${cm.effective_cap})</div>` : '';
       contextHtml = `
