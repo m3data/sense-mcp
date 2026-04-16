@@ -487,13 +487,20 @@ def assemble_diverse_results(
     slots: tuple[int, int, int],
     current_project: str | None,
     min_similarity: float = 0.20,
+    high_relevance_threshold: float = 0.55,
 ) -> list[dict]:
     """Split ranked results into confirmation / divergence / serendipity pools.
 
     slots: (confirmation_count, divergence_count, serendipity_count)
     Each result gets a 'slot_type' field.
+
+    Adaptive allocation: when many top results have high similarity
+    (above high_relevance_threshold), confirmation slots expand at the
+    expense of divergence/serendipity. This prevents the diversity
+    mechanism from burying clear answers behind irrelevant novelty.
     """
     n_confirm, n_diverge, n_serendip = slots
+    total_slots = n_confirm + n_diverge + n_serendip
 
     viable = [r for r in all_results if r["similarity"] >= min_similarity]
     if not viable:
@@ -503,6 +510,29 @@ def assemble_diverse_results(
         for r in viable[:n_confirm]:
             r["slot_type"] = "confirmation"
         return viable[:n_confirm]
+
+    # Adaptive slot allocation: when many top results have high similarity,
+    # expand confirmation at the expense of divergence/serendipity.
+    # Only fires when total_slots >= 5 (skip for small result sets / tests)
+    # and there are enough viable candidates to assess density.
+    if total_slots >= 5 and len(viable) >= total_slots:
+        high_relevance_count = sum(
+            1 for r in viable[:total_slots]
+            if r["similarity"] >= high_relevance_threshold
+        )
+
+        if high_relevance_count >= total_slots * 0.6:
+            # Strong signal — expand confirmation to 70% of slots
+            n_confirm = max(n_confirm, int(total_slots * 0.7))
+            remaining = total_slots - n_confirm
+            n_diverge = max(1, remaining // 2)
+            n_serendip = remaining - n_diverge
+        elif high_relevance_count >= total_slots * 0.4:
+            # Moderate signal — expand confirmation slightly
+            n_confirm = max(n_confirm, int(total_slots * 0.6))
+            remaining = total_slots - n_confirm
+            n_diverge = max(1, remaining // 2)
+            n_serendip = remaining - n_diverge
 
     confirmation = []
     used_paths = set()
@@ -610,13 +640,34 @@ def search_chunks_contextual(
     profile = mode_profiles[mode]
     diversity_profile_name = profile["diversity_profile"]
 
-    # Anti-entrainment: if trajectory is converging, widen diversity
-    # regardless of mode profile. This is the core relevance realisation
-    # mechanism — when the conversation narrows, surface productive dissonance.
-    if traj_signal.get("trend") == "converging" and diversity_profile_name == "narrow":
-        diversity_profile_name = "wide"
+    # Anti-entrainment: trajectory-responsive diversity adjustment.
+    # When converging: narrow modes widen; already-wide modes increase
+    # serendipity. When diverging: resurfacing penalty is suppressed
+    # (recurrence during divergence = coherence, not circling).
+    trend = traj_signal.get("trend")
+    trajectory_suppresses_resurface = False
+
+    if trend == "converging":
+        if diversity_profile_name == "narrow":
+            diversity_profile_name = "wide"
+        # Already-wide modes: shift slots toward more serendipity
+        # (handled by passing adjusted slots below)
+
+    if trend == "diverging":
+        # When the conversation is spreading out, recurring content is
+        # likely coherent anchoring, not circling. Suppress the penalty.
+        trajectory_suppresses_resurface = True
 
     slots = diversity_slots[diversity_profile_name]
+
+    # For converging + already-wide: shift distribution toward serendipity
+    if trend == "converging" and diversity_profile_name == "wide":
+        n_c, n_d, n_s = slots
+        total = n_c + n_d + n_s
+        # Shrink confirmation, expand serendipity
+        n_c = max(2, n_c - 1)
+        n_s = total - n_c - n_d
+        slots = (n_c, n_d, n_s)
 
     pool_size = limit * 8
     raw_candidates = search_chunks(query_embedding, project, None, pool_size)
@@ -685,10 +736,16 @@ def search_chunks_contextual(
         else:
             r["cross_project"] = False
 
-        # Resurfacing signal (now uses decaying penalty, not exponential)
+        # Resurfacing signal (trajectory-aware)
+        # When diverging, recurrence is coherent anchoring → suppress penalty.
+        # When converging or stable, apply normally.
         penalty = session.get_surfaced_penalty(r["file_path"], base_penalty)
         if penalty < 1.0:
-            resurface_signal = penalty - 1.0  # e.g. 0.75 → -0.25
+            if trajectory_suppresses_resurface:
+                # Halve the penalty signal during divergence
+                resurface_signal = (penalty - 1.0) * 0.5
+            else:
+                resurface_signal = penalty - 1.0  # e.g. 0.75 → -0.25
             bias_sum += resurface_signal
             r["resurfaced"] = True
             r["resurface_penalty"] = penalty
