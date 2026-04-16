@@ -46,6 +46,7 @@ _DEFAULTS = {
     "decay": {
         "floor": 0.1,
         "half_lives": {
+            "conversation": 14,
             "trace": 30,
             "teaching": 60,
             "documentation": 90,
@@ -80,7 +81,7 @@ _DEFAULTS = {
                 "source_type_multipliers": {
                     "code": 0.7, "research": 1.3, "documentation": 1.0,
                     "trace": 1.0, "teaching": 1.0, "project_claude": 1.0,
-                    "reference": 1.0,
+                    "reference": 1.0, "mistake": 1.3, "conversation": 0.7,
                 },
                 "cross_project_boost": 1.4,
                 "already_surfaced_penalty": 0.75,
@@ -90,7 +91,7 @@ _DEFAULTS = {
                 "source_type_multipliers": {
                     "code": 1.5, "research": 0.7, "documentation": 1.3,
                     "trace": 1.0, "teaching": 0.8, "project_claude": 1.2,
-                    "reference": 1.0,
+                    "reference": 1.0, "mistake": 1.6, "conversation": 0.5,
                 },
                 "cross_project_boost": 0.8,
                 "already_surfaced_penalty": 0.80,
@@ -100,7 +101,7 @@ _DEFAULTS = {
                 "source_type_multipliers": {
                     "code": 0.6, "research": 1.5, "documentation": 1.0,
                     "trace": 1.0, "teaching": 1.1, "project_claude": 1.0,
-                    "reference": 1.2,
+                    "reference": 1.2, "mistake": 1.2, "conversation": 0.7,
                 },
                 "cross_project_boost": 1.3,
                 "already_surfaced_penalty": 0.75,
@@ -110,7 +111,7 @@ _DEFAULTS = {
                 "source_type_multipliers": {
                     "code": 1.4, "research": 0.5, "documentation": 1.2,
                     "trace": 1.0, "teaching": 0.6, "project_claude": 1.1,
-                    "reference": 1.0,
+                    "reference": 1.0, "mistake": 1.8, "conversation": 0.5,
                 },
                 "cross_project_boost": 0.7,
                 "already_surfaced_penalty": 0.85,
@@ -120,7 +121,7 @@ _DEFAULTS = {
                 "source_type_multipliers": {
                     "code": 0.2, "research": 0.5, "documentation": 0.3,
                     "trace": 0.3, "teaching": 0.4, "project_claude": 0.3,
-                    "reference": 0.5,
+                    "reference": 0.5, "mistake": 0.5, "conversation": 0.3,
                 },
                 "cross_project_boost": 1.0,
                 "already_surfaced_penalty": 0.65,
@@ -135,6 +136,10 @@ _DEFAULTS = {
             {"type": "project_claude", "filename": r"CLAUDE\.md$", "case_insensitive": True},
             {"type": "code", "extension": [".py"]},
         ],
+    },
+    "epistemic_weight": {
+        "default": 1.0,
+        "rules": [],
     },
 }
 
@@ -180,6 +185,7 @@ class SenseConfig:
 
         self._resolve_paths()
         self._compile_classification_rules()
+        self._compile_epistemic_rules()
 
     def _find_config(self) -> Path | None:
         """Find config file via env var or conventional location."""
@@ -250,6 +256,17 @@ class SenseConfig:
         self._classification_default = self._raw["classification"].get(
             "default", "documentation"
         )
+
+    def _compile_epistemic_rules(self):
+        """Pre-compile epistemic weight rules into matchers."""
+        self._epistemic_rules = []
+        raw = self._raw.get("epistemic_weight", {})
+        self._epistemic_default = raw.get("default", 1.0)
+
+        for rule in raw.get("rules", []):
+            weight = rule["weight"]
+            matcher = _build_matcher(rule)
+            self._epistemic_rules.append((weight, matcher))
 
     # --- Property accessors ---
 
@@ -355,6 +372,24 @@ class SenseConfig:
             if matcher(path, rel):
                 return source_type
         return self._classification_default
+
+    def get_epistemic_weight(self, path_str: str) -> float:
+        """Return epistemic weight for a file path. First matching rule wins.
+
+        Epistemic weight is a prior on content importance — foundational
+        documents get higher standing regardless of query or mode. Applied
+        at search time alongside cosine and decay, not as a contextual bias.
+        """
+        for weight, matcher in self._epistemic_rules:
+            # matcher expects (Path, rel_str) but we only have path_str
+            # since this is called at search time with DB paths
+            try:
+                rel = str(Path(path_str).relative_to(self.root))
+            except (ValueError, TypeError):
+                rel = path_str
+            if matcher(Path(path_str), rel):
+                return weight
+        return self._epistemic_default
 
     def is_evergreen(self, source_type: str) -> bool:
         return source_type not in self.half_lives

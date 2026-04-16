@@ -446,7 +446,8 @@ def search_chunks(
         sim = cosine_similarity(query_embedding, stored_emb)
         decay = compute_decay(stype, date)
         rel_w = rel_weights.get(file_path, 1.0)
-        score = sim * decay * rel_w
+        ep_w = cfg.get_epistemic_weight(file_path)
+        score = sim * decay * rel_w * ep_w
 
         results.append({
             "score": score,
