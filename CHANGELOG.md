@@ -2,6 +2,25 @@
 
 All notable changes to Sense are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.4.2] - 2026-05-09
+
+### Changed
+
+- **Build/ship mode reframe** — multipliers rewritten to match what these modes actually deliver in the corpus. Build-in-Sense and ship-in-Sense are now "orient me to the code's context" (specs, prior decisions, conventions, mistakes), not "show me code". Filesystem tools (Read/Grep/Glob) cover code itself; Sense provides the surrounding context.
+  - **Build**: `code` 1.5 → 0.8 (corpus-blocked: only ~3% of indexed chunks). `project_claude` 1.2 → 1.4. `reference` 1.0 → 1.2. `trace` 1.0 → 1.2. `research` 0.7 → 1.0 (data showed it earning its place at 18.8% of useful retrievals). `cross_project_boost` 0.8 → 0.9 (slight widening for adjacent prior decisions).
+  - **Ship**: `code` 1.4 → 0.8 (same corpus reasoning). `project_claude` 1.1 → 1.4. `trace` 1.0 → 1.3 (release work hinges on what broke last time). `reference` 1.0 → 1.2. Stays narrow.
+- **New `balanced` diversity profile** `[5, 3, 2]` — between `narrow` and `wide`. Build now uses `balanced`: anchored on the current thread but with deliberate adjacency for prior decisions and cross-project patterns.
+
+### Why
+
+Internal consistency check on 7,545 feedback rows (2026-05-09) showed build/ship multipliers were partially working against their own spec. Code multipliers (1.5×, 1.4×) couldn't deliver because the indexed corpus is only 3.3% code (Python only — Rust/Swift/JS/TS are not in the extension whitelist). Build/ship modes were *effectively* surfacing documentation, project_claude, research, and traces — sensible "orient me" content, but not what the spec claimed they did. The fix realigns spec with what's actually useful, rather than tuning labels against an instrument working against its own design intent.
+
+The cross-project code-pattern gap (the original case for build's code boost) is real but separate. Decision deferred: widen the corpus to include Rust/Swift/JS as a scoped experiment after this reframe lands.
+
+### Connects to
+
+`DESIGN_DIRECTION_relevance-realisation.md` — Tier 1 mode-aware Sense spec is updated to reflect the reframe. Original build description ("boost code and technical documentation") was specced from intuition; revised description matches empirical behaviour.
+
 ## [0.4.1] - 2026-04-16
 
 ### Added

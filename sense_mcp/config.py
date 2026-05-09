@@ -73,6 +73,7 @@ _DEFAULTS = {
         "min_type_slots": 2,
         "diversity_slots": {
             "wide": [4, 3, 3],
+            "balanced": [5, 3, 2],
             "narrow": [7, 2, 1],
             "suppress": [3, 0, 0],
         },
@@ -88,14 +89,23 @@ _DEFAULTS = {
                 "diversity_profile": "wide",
             },
             "build": {
+                # Reframe (v0.4.2): build-in-Sense is "orient me to the code's
+                # context", not "show me code". Filesystem tools (Read/Grep/Glob)
+                # cover code itself. Sense provides specs, prior decisions,
+                # conventions, mistakes — the context around the code.
+                # Code multiplier dropped from 1.5 (corpus-blocked: only ~3% of
+                # indexed chunks) to 0.8. Project_claude / reference / trace
+                # raised because that's what build mode actually delivers and
+                # what the data shows is useful (see internal-consistency check
+                # 2026-05-09).
                 "source_type_multipliers": {
-                    "code": 1.5, "research": 0.7, "documentation": 1.3,
-                    "trace": 1.0, "teaching": 0.8, "project_claude": 1.2,
-                    "reference": 1.0, "mistake": 1.6, "conversation": 0.5,
+                    "code": 0.8, "research": 1.0, "documentation": 1.3,
+                    "trace": 1.2, "teaching": 0.6, "project_claude": 1.4,
+                    "reference": 1.2, "mistake": 1.6, "conversation": 0.5,
                 },
-                "cross_project_boost": 0.8,
+                "cross_project_boost": 0.9,
                 "already_surfaced_penalty": 0.80,
-                "diversity_profile": "narrow",
+                "diversity_profile": "balanced",
             },
             "think-with": {
                 "source_type_multipliers": {
@@ -108,10 +118,16 @@ _DEFAULTS = {
                 "diversity_profile": "wide",
             },
             "ship": {
+                # Reframe (v0.4.2): ship-in-Sense is "orient me to release
+                # context" — prior decisions, deployment history, mistakes,
+                # conventions. Code multiplier dropped from 1.4 to 0.8 (same
+                # corpus-blocked reasoning as build). Project_claude / trace
+                # raised — release work hinges on what was decided and what
+                # broke last time. Stays narrow for tighter focus than build.
                 "source_type_multipliers": {
-                    "code": 1.4, "research": 0.5, "documentation": 1.2,
-                    "trace": 1.0, "teaching": 0.6, "project_claude": 1.1,
-                    "reference": 1.0, "mistake": 1.8, "conversation": 0.5,
+                    "code": 0.8, "research": 0.5, "documentation": 1.2,
+                    "trace": 1.3, "teaching": 0.6, "project_claude": 1.4,
+                    "reference": 1.2, "mistake": 1.8, "conversation": 0.5,
                 },
                 "cross_project_boost": 0.7,
                 "already_surfaced_penalty": 0.85,
